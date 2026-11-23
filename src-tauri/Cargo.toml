@@ -15,6 +15,12 @@ name = "keys"
 path = "examples/keys/main.rs"
 test = true
 
+# Generates the bundled sound packs: `npm run make-packs`. Not part of the app.
+[[example]]
+name = "make-packs"
+path = "examples/make_packs/main.rs"
+test = true
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

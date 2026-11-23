@@ -1,0 +1,12 @@
+{
+  "name": "Typewriter",
+  "author": "Mechanical Key Sounds contributors",
+  "license": "CC0-1.0",
+  "keys": {
+    "default": ["down/default-1.wav", "down/default-2.wav", "down/default-3.wav", "down/default-4.wav", "down/default-5.wav"],
+    "space": ["down/space-1.wav", "down/space-2.wav", "down/space-3.wav"],
+    "enter": ["down/enter-1.wav"],
+    "backspace": ["down/backspace-1.wav", "down/backspace-2.wav", "down/backspace-3.wav"],
+    "modifier": ["down/modifier-1.wav", "down/modifier-2.wav", "down/modifier-3.wav"]
+  }
+}

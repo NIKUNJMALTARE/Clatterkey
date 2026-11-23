@@ -4,7 +4,13 @@ A small desktop app for macOS and Windows that plays the sound of a mechanical k
 
 The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs: blue, brown and red switches, and a typewriter. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
 
-On macOS the app can only hear key presses once it has the Accessibility / Input Monitoring permission in System Settings, Privacy & Security. Without it the app runs and is silent. It notices only that a key went down: it never records, stores or sends which key it was.
+### The macOS permission
+
+On macOS the app can only hear key presses once it has the Input Monitoring permission (System Settings, Privacy & Security, Input Monitoring). It asks for nothing else, and it notices only that a key went down: it never records, stores or sends which key it was.
+
+While the permission is missing, the window shows a screen that explains this in place of the settings. **Open System Settings** takes you to the Input Monitoring list; turn Mechanical Key Sounds on there and the sound starts by itself within a second or so. If it does not, the screen offers **Restart now**. **Set up later** shows the settings for now, with a reminder at the top; there is no sound until the permission is given.
+
+If Mechanical Key Sounds is already switched on in the list and the app is still silent, the entry is left over from an older copy of the app. Select it in the list, remove it with the minus button, and add the app again.
 
 ### The tray
 
@@ -32,9 +38,9 @@ You need Node 22 or later and Rust 1.96 (installed by `rustup` from `rust-toolch
 
 `npm install` also points git at `.githooks/`, so the checks run before every push. The hook runs them in check-only mode, so a push with badly formatted code is refused; run `scripts/check.sh` to fix the formatting, commit, and push again.
 
-`npm run keys` prints one line for every key press and release in any app (`down KeyA`, `up KeyA`) until you stop it with Ctrl+C. It is a development tool and is not part of the app. On macOS the terminal you run it from needs the Accessibility / Input Monitoring permission in System Settings, Privacy & Security; without it nothing is printed. It prints which physical key was pressed, never the character typed, and stores nothing.
+`npm run keys` prints one line for every key press and release in any app (`down KeyA`, `up KeyA`) until you stop it with Ctrl+C. It is a development tool and is not part of the app. On macOS the terminal you run it from needs the Input Monitoring permission in System Settings, Privacy & Security; without it nothing is printed. It prints which physical key was pressed, never the character typed, and stores nothing.
 
-When you start the app with `npm run tauri dev` on macOS, it is the terminal you run it from that needs the permission above, as for `npm run keys`.
+When you start the app with `npm run tauri dev` on macOS, it is the terminal you run it from that needs the permission above, as for `npm run keys`, and the permission screen shows until that terminal has it. To see the first-run screen again with a built app, take its permission away with `tccutil reset ListenEvent com.mechanicalkeysounds.app`.
 
 ### Settings
 
@@ -58,7 +64,7 @@ The settings window has a Sound switch, a volume slider and the list of sound pa
 
 An unknown pack plays `brown`, and a broken settings file is left as it is with the defaults in use. Either way the window shows a notice, and one line starting `sound pack:` or `settings:` is printed. A broken file is replaced the first time a setting is changed in the window.
 
-To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error` or `no-packs` to see that state. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console.
+To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error`, `no-packs`, `permission-needed`, `permission-restart` or `permission-open-fails` to see that state. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console; to play the part of System Settings, run `__mksFake.setPermission("granted")` (or `"needed"`, `"restart_needed"`).
 
 ### The bundled packs
 

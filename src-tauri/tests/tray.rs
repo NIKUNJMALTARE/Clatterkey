@@ -27,6 +27,7 @@ use std::time::{Duration, Instant};
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player};
 use mechanical_key_sounds_lib::commands::{Core, CoreGate, CoreParts, Listener};
 use mechanical_key_sounds_lib::keys::KeyCode;
+use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
 use mechanical_key_sounds_lib::settings::{self, Settings};
 use mechanical_key_sounds_lib::startup::choose_pack;
 use mechanical_key_sounds_lib::tray::{
@@ -93,6 +94,7 @@ fn blocked_rig() -> (
         playing: chosen.playing,
         fell_back: chosen.fell_back,
         live: Arc::clone(&live),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
     }));
     let sink = Arc::new(RecordingSink::default());

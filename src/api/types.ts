@@ -28,6 +28,17 @@ export interface StartupProblems {
 
 export type AudioStatus = "playing" | "no_device" | "failed";
 
+/**
+ * The macOS key-listening permission (Input Monitoring). `not_needed` on
+ * every other platform; `restart_needed` when macOS has granted it but the
+ * key listener could not start in this run.
+ */
+export type PermissionState =
+	| "not_needed"
+	| "needed"
+	| "granted"
+	| "restart_needed";
+
 /** What the window opens with. */
 export interface SettingsState {
 	settings: Settings;
@@ -35,6 +46,7 @@ export interface SettingsState {
 	playing_pack: string | null;
 	startup: StartupProblems;
 	audio: AudioStatus;
+	permission: PermissionState;
 	/** How many changes the core has applied; see `SetResult.revision`. */
 	revision: number;
 }
@@ -66,6 +78,14 @@ export interface CoreApi {
 	getSettings(): Promise<SettingsState>;
 	setSettings(patch: SettingsPatch): Promise<SetResult>;
 	audioStatus(): Promise<AudioStatus>;
+	permissionStatus(): Promise<PermissionState>;
+	/**
+	 * Asks macOS for the permission and opens System Settings on the Input
+	 * Monitoring pane. Rejects if the pane could not be opened.
+	 */
+	openPermissionSettings(): Promise<void>;
+	/** Quits the app and starts it again. */
+	restartApp(): Promise<void>;
 	/**
 	 * Calls `listener` with the result of every change the core applies,
 	 * whoever asked for it: this window or the tray.

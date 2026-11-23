@@ -5,6 +5,7 @@ import type {
 	AudioStatus,
 	CoreApi,
 	PackInfo,
+	PermissionState,
 	SetResult,
 	SettingsState,
 } from "./types";
@@ -14,6 +15,13 @@ export const tauriCore: CoreApi = {
 	getSettings: () => invoke<SettingsState>("get_settings"),
 	setSettings: (patch) => invoke<SetResult>("set_settings", { patch }),
 	audioStatus: () => invoke<AudioStatus>("audio_status"),
+	permissionStatus: () => invoke<PermissionState>("permission_status"),
+	openPermissionSettings: async () => {
+		await invoke<boolean>("open_permission_settings");
+	},
+	restartApp: async () => {
+		await invoke<boolean>("restart_app");
+	},
 	onSettingsChanged: (listener) =>
 		listen<SetResult>("settings-changed", (event) => listener(event.payload)),
 };

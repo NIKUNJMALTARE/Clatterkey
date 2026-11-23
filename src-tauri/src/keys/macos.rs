@@ -7,8 +7,12 @@
 use std::ffi::c_void;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use objc2_core_foundation::{CFMachPort, CFRetained, CFRunLoop, kCFRunLoopCommonModes};
+use objc2_core_foundation::{
+    CFMachPort, CFRetained, CFRunLoop, CFRunLoopRunResult, kCFRunLoopCommonModes,
+    kCFRunLoopDefaultMode,
+};
 use objc2_core_graphics::{
     CGEvent, CGEventField, CGEventMask, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
     CGEventTapProxy, CGEventType,
@@ -311,9 +315,18 @@ unsafe extern "C-unwind" fn tap_callback<F: FnMut(RawKey)>(
     event.as_ptr()
 }
 
+/// How long the run loop runs before it looks at the stop flag again.
+const STOP_CHECK_SECONDS: f64 = 0.25;
+
 /// Creates the tap and runs it on the calling thread until it stops.
 /// Reports through `started` whether the OS let the tap be created.
-pub(super) fn run<F: FnMut(RawKey)>(deliver: F, started: Started) -> Result<(), KeyListenError> {
+/// Setting `stop` ends it within `STOP_CHECK_SECONDS`, and that is not an
+/// error.
+pub(super) fn run<F: FnMut(RawKey)>(
+    deliver: F,
+    started: Started,
+    stop: &AtomicBool,
+) -> Result<(), KeyListenError> {
     let mut context = TapContext {
         deliver,
         modifiers: ModifierState::default(),
@@ -340,8 +353,7 @@ pub(super) fn run<F: FnMut(RawKey)>(deliver: F, started: Started) -> Result<(), 
         return fail(
             &started,
             "macOS refused the key event tap. Grant this app (or the terminal running it) \
-             the Accessibility / Input Monitoring permission in System Settings, \
-             Privacy & Security, then start it again.",
+             the Input Monitoring permission in System Settings, Privacy & Security.",
         );
     };
     let Some(source) = CFMachPort::new_run_loop_source(None, Some(&tap), 0) else {
@@ -363,17 +375,36 @@ pub(super) fn run<F: FnMut(RawKey)>(deliver: F, started: Started) -> Result<(), 
     CGEvent::tap_enable(&tap, true);
 
     let _ = started.send(Ok(()));
-    CFRunLoop::run();
+
+    // The loop runs in short slices so that a stop asked for from another
+    // thread is seen: a run loop handle cannot be sent across threads.
+    // SAFETY: reading a constant that CoreFoundation initialises at load.
+    let default_mode = unsafe { kCFRunLoopDefaultMode };
+    let asked_to_stop = loop {
+        if stop.load(Ordering::SeqCst) {
+            break true;
+        }
+        let result = CFRunLoop::run_in_mode(default_mode, STOP_CHECK_SECONDS, false);
+        if result == CFRunLoopRunResult::Finished || result == CFRunLoopRunResult::Stopped {
+            break false;
+        }
+    };
 
     // The loop has ended, so the callback will not run again; switching the
     // tap off first makes sure of it before the context is read and dropped.
     CGEvent::tap_enable(&tap, false);
+    tap.invalidate();
     // SAFETY: no callback can be running: the run loop that calls it has
     // returned on this same thread.
     let failure = unsafe { (*context_ptr).failure.take() };
-    Err(KeyListenError::Stopped(failure.unwrap_or_else(|| {
-        "the key event tap's run loop ended".into()
-    })))
+    match failure {
+        None if asked_to_stop => Ok(()),
+        failure => {
+            Err(KeyListenError::Stopped(failure.unwrap_or_else(|| {
+                "the key event tap's run loop ended".into()
+            })))
+        }
+    }
 }
 
 /// Reports a start-up failure to `start` and returns it.

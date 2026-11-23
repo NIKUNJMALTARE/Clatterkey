@@ -4,6 +4,7 @@ import * as api from "../api";
 import type {
 	AudioStatus,
 	PackInfo,
+	PermissionState,
 	SetResult,
 	SettingsState,
 } from "../api/types";
@@ -52,6 +53,7 @@ export function state(over: Partial<SettingsState> = {}): SettingsState {
 			unusable_pack: null,
 		},
 		audio: "playing",
+		permission: "not_needed",
 		revision: 0,
 		...over,
 	};
@@ -88,6 +90,11 @@ export function healthyCore(initial: SettingsState = state(), packs = PACKS) {
 	vi.mocked(api.audioStatus).mockImplementation(
 		async () => current.audio as AudioStatus,
 	);
+	vi.mocked(api.permissionStatus).mockImplementation(
+		async () => current.permission as PermissionState,
+	);
+	vi.mocked(api.openPermissionSettings).mockResolvedValue(undefined);
+	vi.mocked(api.restartApp).mockResolvedValue(undefined);
 	vi.mocked(api.setSettings).mockImplementation(async (patch) => {
 		const r = result(current, patch);
 		current = {
@@ -101,6 +108,10 @@ export function healthyCore(initial: SettingsState = state(), packs = PACKS) {
 	return {
 		setAudio(audio: AudioStatus) {
 			current = { ...current, audio };
+		},
+		/** What `permissionStatus` answers from now on. */
+		setPermission(permission: PermissionState) {
+			current = { ...current, permission };
 		},
 		/** How many listeners are subscribed through `onSettingsChanged`. */
 		listenerCount: () => listeners.size,

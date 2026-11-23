@@ -4,6 +4,7 @@ import type {
 	AudioStatus,
 	CoreApi,
 	PackInfo,
+	PermissionState,
 	SetResult,
 	SettingsPatch,
 	SettingsState,
@@ -47,6 +48,18 @@ export async function setSettings(patch: SettingsPatch): Promise<SetResult> {
 
 export async function audioStatus(): Promise<AudioStatus> {
 	return (await core()).audioStatus();
+}
+
+export async function permissionStatus(): Promise<PermissionState> {
+	return (await core()).permissionStatus();
+}
+
+export async function openPermissionSettings(): Promise<void> {
+	return (await core()).openPermissionSettings();
+}
+
+export async function restartApp(): Promise<void> {
+	return (await core()).restartApp();
 }
 
 export async function onSettingsChanged(

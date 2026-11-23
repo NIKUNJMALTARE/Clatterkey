@@ -344,3 +344,77 @@ h2 {
 	font-weight: var(--font-weight-strong);
 	cursor: pointer;
 }
+
+/* The lesser of two choices: an outline, not a filled button. */
+.button-secondary {
+	background: none;
+	border: 1px solid var(--color-control-border);
+	color: var(--color-text);
+}
+
+/* A notice's own button sits beside its text and keeps to one line. */
+.notice-action {
+	flex: none;
+	align-self: center;
+	white-space: nowrap;
+}
+
+/* The macOS permission screen, in place of the settings. */
+.permission {
+	display: flex;
+	flex-direction: column;
+	/* Tight enough that the fullest state fits the smallest window. */
+	gap: var(--space-2);
+	padding: var(--space-4);
+	/* A very small window scrolls the screen, not the page. */
+	min-height: 0;
+	flex: 0 1 auto;
+	overflow-y: auto;
+}
+
+.permission p,
+.permission li {
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.permission-steps {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	margin: 0;
+	padding-left: var(--space-5);
+}
+
+.permission-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+/* In the page before the explanation, drawn after the buttons. */
+.permission-progress {
+	order: 1;
+	color: var(--color-text-muted);
+	font-size: var(--font-size-secondary);
+}
+
+/*
+ * Empty until there is something to say, but never hidden: a status that
+ * is out of the page when its text arrives may not be announced. The
+ * negative margin takes back the column's gap while it is empty.
+ */
+.permission-progress:empty {
+	margin-top: calc(-1 * var(--space-2));
+}
+
+.permission-failed {
+	order: 2;
+	padding: var(--space-2) var(--space-3);
+	background: var(--color-danger-soft);
+	border: 1px solid currentcolor;
+	border-radius: var(--radius-m);
+	color: var(--color-danger);
+	font-size: var(--font-size-secondary);
+}

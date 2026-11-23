@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import * as api from "./api";
 import type { SetResult } from "./api/types";
-import { PACKS, healthyCore, result, state } from "./test/fixtures";
+import { healthyCore, PACKS, result, state } from "./test/fixtures";
 
 // The core is mocked at the `src/api` seam.
 vi.mock("./api", () => ({
@@ -18,6 +18,9 @@ vi.mock("./api", () => ({
 	getSettings: vi.fn(),
 	setSettings: vi.fn(),
 	audioStatus: vi.fn(),
+	permissionStatus: vi.fn(),
+	openPermissionSettings: vi.fn(),
+	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
 }));
 

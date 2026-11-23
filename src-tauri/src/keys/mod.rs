@@ -10,10 +10,13 @@ mod filter;
 mod group;
 #[cfg(target_os = "macos")]
 mod macos;
+pub mod permission;
 #[cfg(target_os = "windows")]
 mod windows;
 
 use std::fmt;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::sync::mpsc;
 use std::thread::JoinHandle;
@@ -47,14 +50,30 @@ impl fmt::Display for KeyListenError {
 
 impl std::error::Error for KeyListenError {}
 
-/// A running listener. It runs for the life of the process; there is no way
-/// to stop it.
+/// A running listener. It runs until it is stopped, or for the life of the
+/// process.
 #[derive(Debug)]
 pub struct Listener {
     thread: JoinHandle<Result<(), KeyListenError>>,
+    /// Asks the back end to end. Only the macOS back end looks at it.
+    stop: Arc<AtomicBool>,
 }
 
 impl Listener {
+    /// Ends the listener. On macOS this waits, for a fraction of a second,
+    /// until the event tap is gone, so a new listener can be started with no
+    /// overlap. The Windows hook cannot be ended; there it is left running.
+    pub fn stop(self) {
+        self.stop.store(true, Ordering::SeqCst);
+        #[cfg(target_os = "macos")]
+        let _ = self.thread.join();
+    }
+
+    /// Whether the listener thread has ended, by a stop or by itself.
+    pub fn is_finished(&self) -> bool {
+        self.thread.is_finished()
+    }
+
     /// Blocks until the listener thread ends, which normally it never does.
     pub fn wait(self) -> Result<(), KeyListenError> {
         self.thread.join().unwrap_or_else(|_| {
@@ -78,8 +97,8 @@ type Started = mpsc::Sender<Result<(), KeyListenError>>;
 /// Starts listening on a dedicated thread and calls `consumer` on that thread
 /// for every key event, whatever app has focus.
 ///
-/// On macOS the process needs the Accessibility / Input Monitoring
-/// permission; without it the OS may deliver nothing and report no error.
+/// On macOS the process needs the Input Monitoring permission; without it
+/// the OS refuses the listener, or may deliver nothing and report no error.
 /// On Windows a second call replaces the first listener's consumer, and a
 /// consumer that panics stops receiving events without ending the listener.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -87,6 +106,9 @@ pub fn start(
     mut consumer: impl FnMut(KeyEvent) + Send + 'static,
 ) -> Result<Listener, KeyListenError> {
     let (started, has_started) = mpsc::channel();
+    let stop = Arc::new(AtomicBool::new(false));
+    #[cfg(target_os = "macos")]
+    let stop_asked = Arc::clone(&stop);
     let thread = std::thread::Builder::new()
         .name("keys".into())
         .spawn(move || {
@@ -97,7 +119,7 @@ pub fn start(
                 }
             };
             #[cfg(target_os = "macos")]
-            return macos::run(deliver, started);
+            return macos::run(deliver, started, &stop_asked);
             #[cfg(target_os = "windows")]
             return windows::run(deliver, started);
         })
@@ -114,10 +136,10 @@ pub fn start(
     };
 
     match report {
-        Some(Ok(())) => Ok(Listener { thread }),
+        Some(Ok(())) => Ok(Listener { thread, stop }),
         Some(Err(error)) => Err(error),
         // The thread ended without reporting: pass on whatever it returned.
-        None => match (Listener { thread }).wait() {
+        None => match (Listener { thread, stop }).wait() {
             Err(error) => Err(error),
             Ok(()) => Err(KeyListenError::Start("the listener ended at once".into())),
         },

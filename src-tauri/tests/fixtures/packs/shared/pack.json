@@ -1,0 +1,8 @@
+{
+  "name": "Shared file",
+  "license": "CC0-1.0",
+  "keys": {
+    "default": ["down/a1.wav", "down/a2.wav", "down/a3.wav"],
+    "space": ["down/a1.wav"]
+  }
+}

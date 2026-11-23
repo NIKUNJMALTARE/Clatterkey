@@ -1,0 +1,5 @@
+{
+  "name": "Formats",
+  "license": "CC0-1.0",
+  "keys": { "default": ["audio/tone-mono-44100.flac","audio/tone-mono-44100.mp3","audio/tone-mono-44100.wav","audio/tone-mono-48000.flac","audio/tone-mono-48000.mp3","audio/tone-mono-48000.wav","audio/tone-stereo-44100.flac","audio/tone-stereo-44100.mp3","audio/tone-stereo-44100.ogg","audio/tone-stereo-44100.wav","audio/tone-stereo-48000.flac","audio/tone-stereo-48000.mp3","audio/tone-stereo-48000.ogg","audio/tone-stereo-48000.wav","audio/wav-named-ogg.ogg"] }
+}

@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod keys;
+pub mod packs;
 pub mod startup;
 
 use std::sync::{Arc, Mutex};
@@ -22,7 +23,10 @@ pub fn run() {
 
 /// Opens the sound output and starts the key listener, each on its own
 /// thread, so neither holds up the window. Nothing here can stop the app
-/// from starting: with no output or no listener it runs without clicks.
+/// from starting: with no output or no listener it runs without sound.
+///
+/// Until packs are chosen in settings, the pack folder comes from the
+/// `MKS_PACK` environment variable; without it the built-in click plays.
 fn start_clicks() -> audio::OutputHandle {
     let slot = Arc::new(audio::SinkSlot::new());
     let output = audio::spawn_output(Arc::clone(&slot));
@@ -33,13 +37,19 @@ fn start_clicks() -> audio::OutputHandle {
     let _ = std::thread::Builder::new()
         .name("startup".into())
         .spawn(move || {
-            startup::run_clicks(
+            let err: startup::ErrorOut = Arc::new(Mutex::new(std::io::stderr()));
+            // The pack is loaded before the listener starts, so no key plays
+            // from a half-loaded pack.
+            let pack = startup::pack_dir(std::env::var_os("MKS_PACK"));
+            let sounds = startup::choose_sounds(pack.as_deref(), &err);
+            startup::run_sounds(
                 |consumer| {
                     let listener = keys::start(consumer)?;
                     Ok(Box::new(move || listener.wait()) as startup::Wait)
                 },
                 slot,
-                Arc::new(Mutex::new(std::io::stderr())),
+                sounds,
+                err,
             );
         });
 

@@ -1,3 +1,5 @@
+pub mod keys;
+
 /// The product name shown in the window title and the UI.
 pub const APP_NAME: &str = "Mechanical Key Sounds";
 

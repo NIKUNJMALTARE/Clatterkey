@@ -9,8 +9,23 @@ publish = false
 [lib]
 name = "mechanical_key_sounds_lib"
 
+# Dev command that prints key events: `npm run keys`. Not part of the app.
+[[example]]
+name = "keys"
+path = "examples/keys/main.rs"
+test = true
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2.12", features = [] }
+
+# Key capture. Each back end is declared only for its own OS, so other
+# targets (the Linux check) compile with no key-capture code at all.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFMachPort", "CFRunLoop"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGEvent", "CGEventTypes"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+rdev = { git = "https://github.com/Narsil/rdev", rev = "b7e201bf80be7b9632207366f277d29fe732b9c1" }

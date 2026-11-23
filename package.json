@@ -11,6 +11,7 @@
 		"build": "tsc --noEmit && vite build",
 		"tauri": "tauri",
 		"test": "vitest run",
+		"keys": "cargo run --manifest-path src-tauri/Cargo.toml --example keys",
 		"prepare": "node scripts/prepare.mjs"
 	},
 	"dependencies": {

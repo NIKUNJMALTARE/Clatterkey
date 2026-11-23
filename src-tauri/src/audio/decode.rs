@@ -27,7 +27,13 @@ pub enum DecodeError {
     ChangesFormat,
     /// More than two channels: a pack sound is mono or stereo.
     TooManyChannels,
+    /// A sample rate above `MAX_SAMPLE_RATE`.
+    RateTooHigh,
 }
+
+/// The highest sample rate a pack sound may have. Above it a few seconds
+/// of sound take a great deal of memory, and nothing is gained.
+pub const MAX_SAMPLE_RATE: u32 = 96_000;
 
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -41,6 +47,9 @@ impl fmt::Display for DecodeError {
                 f.write_str("changes channel count or sample rate part-way through")
             }
             DecodeError::TooManyChannels => f.write_str("has more than two channels"),
+            DecodeError::RateTooHigh => {
+                write!(f, "sample rate above {} kHz", MAX_SAMPLE_RATE / 1000)
+            }
         }
     }
 }
@@ -69,6 +78,10 @@ pub fn decode(bytes: Vec<u8>, max: Duration) -> Result<Sample, DecodeError> {
     let declared = decoder.total_duration();
     if channels > 2 {
         return Err(DecodeError::TooManyChannels);
+    }
+    // Refused before a single value is read.
+    if sample_rate > MAX_SAMPLE_RATE {
+        return Err(DecodeError::RateTooHigh);
     }
     let max_values =
         (max.as_secs_f64() * f64::from(sample_rate)).ceil() as usize * usize::from(channels);

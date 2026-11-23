@@ -210,3 +210,78 @@ pub fn packs_folder(label: &str, packs: &[(&str, &str)]) -> TempDir {
     }
     tmp
 }
+
+// ---- Feature 10: importing packs ----
+
+/// Every file under `dir` as (path relative to `dir` with `/`, bytes), and
+/// every folder as (path + "/", empty). Equal snapshots mean equal trees.
+pub fn snapshot(dir: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+    fn walk(root: &Path, dir: &Path, out: &mut std::collections::BTreeMap<String, Vec<u8>>) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let rel = path
+                .strip_prefix(root)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            if path.is_dir() {
+                out.insert(format!("{rel}/"), Vec::new());
+                walk(root, &path, out);
+            } else {
+                out.insert(rel, fs::read(&path).unwrap_or_default());
+            }
+        }
+    }
+    let mut out = std::collections::BTreeMap::new();
+    walk(dir, dir, &mut out);
+    out
+}
+
+/// The files (not folders) under `dir`, as sorted relative paths.
+pub fn files_under(dir: &Path) -> Vec<String> {
+    snapshot(dir)
+        .into_keys()
+        .filter(|k| !k.ends_with('/'))
+        .collect()
+}
+
+/// A source folder named `folder_name` inside a fresh temporary folder,
+/// holding a copy of the fixture pack `fixture`.
+pub fn source_from_fixture(folder_name: &str, fixture: &str) -> (TempDir, PathBuf) {
+    let tmp = TempDir::new("src");
+    let dir = tmp.path().join(folder_name);
+    copy_dir(&fixture_pack(fixture), &dir);
+    (tmp, dir)
+}
+
+/// A source pack folder named `folder_name` with one default sound `a.wav`
+/// of `letter_ms` milliseconds and, if `space_ms` is given, `space.wav`
+/// for Space. The lengths tell which pack played.
+pub fn source_with_lengths(
+    folder_name: &str,
+    letter_ms: u32,
+    space_ms: Option<u32>,
+) -> (TempDir, PathBuf) {
+    let tmp = TempDir::new("src");
+    let dir = tmp.path().join(folder_name);
+    fs::create_dir_all(&dir).unwrap();
+    let space = match space_ms {
+        Some(ms) => {
+            fs::write(dir.join("space.wav"), wav_bytes(44100, ms, 8000)).unwrap();
+            r#","space":["space.wav"]"#
+        }
+        None => "",
+    };
+    fs::write(dir.join("a.wav"), wav_bytes(44100, letter_ms, 8000)).unwrap();
+    fs::write(
+        dir.join("pack.json"),
+        format!(
+            r#"{{"name":"Mine {letter_ms}","license":"CC0-1.0","keys":{{"default":["a.wav"]{space}}}}}"#
+        ),
+    )
+    .unwrap();
+    (tmp, dir)
+}

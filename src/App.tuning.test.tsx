@@ -24,6 +24,8 @@ vi.mock("./api", () => ({
 	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
 	preview: vi.fn(),
+	importPack: vi.fn(),
+	removePack: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);

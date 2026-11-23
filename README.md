@@ -2,13 +2,35 @@
 
 A small desktop app for macOS and Windows that plays the sound of a mechanical keyboard every time you press a key, in any app. Everything is local; there are no accounts.
 
-The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs: blue, brown and red switches, and a typewriter. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
+The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs (blue, brown and red switches, and a typewriter) or from a pack you imported. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
 
 Three more controls tune the sound:
 
 - **Pitch variation** (Off to 30%) plays each sound a little faster or slower, chosen at random within that range, so repeated keys do not sound identical. Faster is higher and slightly shorter.
 - **Key-up sounds** turns the sound of a key being released on or off. Typewriter has no such sounds, and the window says so.
 - **Preview** plays a short typed phrase with the pack and settings in force, so you can hear a pack without typing. It plays even when Sound is off, and on macOS before the permission below is given.
+
+### Importing a pack
+
+**Import pack…** in the settings window opens the system's folder picker. The folder you choose is checked, copied into the app's own data, added to the list and selected. Your folder is only read, and later edits to it have no effect until you import it again.
+
+Two kinds of folder work:
+
+- **A pack folder**: a `pack.json` and the audio files it names (the format is in `docs/spec.md`). Only those files are copied.
+- **A plain folder of audio files**: its own `.wav`, `.ogg`, `.mp3` and `.flac` files, not its subfolders. Each file is assigned by its name, ignoring case:
+  - a name ending in `-up`, `_up` or ` up` is a key-up sound (`click-up.wav`);
+  - a name starting with `space`, `enter`, `backspace` or `modifier` is for those keys (`space.wav`, `Space 2.wav`, `enter-up.wav`);
+  - every other file is an ordinary key sound, and there must be at least one.
+
+  A file name may not contain `:` or `\` (Finder shows `:` as `/`); rename such a file first.
+
+  The pack takes the folder's name and is listed as "Licence not stated".
+
+The limits are those of every pack: each file at most 10 MB, 3 seconds and 96 kHz; at most 100 files and 60 seconds of audio. One bad file refuses the whole folder, and a notice says which file and why; the pack that was playing keeps playing.
+
+Importing a folder with the same name again replaces the earlier copy. **Remove** on an imported pack's row asks once, then deletes the app's copy; your own folder is not touched. If that pack was playing, Brown switches takes over. The bundled packs cannot be removed.
+
+The copies are kept in `packs/` beside `settings.json` (see Settings below), one folder per pack, named by an id made from your folder's name (`My Clicks` becomes `my-clicks`).
 
 ### The macOS permission
 
@@ -50,7 +72,7 @@ When you start the app with `npm run tauri dev` on macOS, it is the terminal you
 
 ### Settings
 
-The settings window has a Sound switch, a volume slider, a pitch variation slider, a Key-up sounds switch, a Preview button and the list of sound packs. There is no Save button: a change applies at once and is written to `settings.json`, which is created with the defaults on first run:
+The settings window has a Sound switch, a volume slider, a pitch variation slider, a Key-up sounds switch, Import pack… and Preview buttons and the list of sound packs. There is no Save button: a change applies at once and is written to `settings.json`, which is created with the defaults on first run:
 
 - macOS: `~/Library/Application Support/com.mechanicalkeysounds.app/settings.json`
 - Windows: `%APPDATA%\com.mechanicalkeysounds.app\settings.json`
@@ -66,11 +88,11 @@ The settings window has a Sound switch, a volume slider, a pitch variation slide
 }
 ```
 
-`pack_id` is one of `blue`, `brown`, `red` or `typewriter`. `pitch_variation` is from 0.0 (off) to 0.3. `launch_at_login` is kept for a later feature and has no effect yet; the others are all in force. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
+`pack_id` is one of `blue`, `brown`, `red` or `typewriter`, or the id of an imported pack. `pitch_variation` is from 0.0 (off) to 0.3. `launch_at_login` is kept for a later feature and has no effect yet; the others are all in force. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
 
 An unknown pack plays `brown`, and a broken settings file is left as it is with the defaults in use. Either way the window shows a notice, and one line starting `sound pack:` or `settings:` is printed. A broken file is replaced the first time a setting is changed in the window.
 
-To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error`, `no-packs`, `permission-needed`, `permission-restart`, `permission-open-fails`, `no-key-up` or `preview-error` to see that state. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console; to play the part of System Settings, run `__mksFake.setPermission("granted")` (or `"needed"`, `"restart_needed"`).
+To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error`, `no-packs`, `permission-needed`, `permission-restart`, `permission-open-fails`, `no-key-up`, `preview-error`, `imported`, `import-error` or `remove-error` to see that state. There, Import pack… adds a made-up pack with no picker. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console; to play the part of System Settings, run `__mksFake.setPermission("granted")` (or `"needed"`, `"restart_needed"`).
 
 ### The bundled packs
 

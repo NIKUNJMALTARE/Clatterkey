@@ -1,7 +1,7 @@
 //! Reads and checks `pack.json`. Checked by hand over a JSON value rather
 //! than derived, so every error can name the field it is about.
 
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 use super::PackErrorKind as Kind;
 use crate::keys::KeyGroup;
@@ -19,6 +19,35 @@ pub(super) struct Manifest {
 
 /// A problem with one field: the field's path (`keys.space[0]`) and what is
 /// wrong with it.
+impl Manifest {
+    /// This manifest as the text of a `pack.json`: the author only if there
+    /// is one, and only the groups that have files.
+    pub(super) fn to_json(&self) -> String {
+        let groups = |lists: &[Vec<String>; 5]| -> Map<String, Value> {
+            KeyGroup::ALL
+                .into_iter()
+                .filter(|group| !lists[group.index()].is_empty())
+                .map(|group| (group.name().to_string(), json!(lists[group.index()])))
+                .collect()
+        };
+        let mut top = Map::new();
+        top.insert("name".into(), json!(self.name));
+        if let Some(author) = &self.author {
+            top.insert("author".into(), json!(author));
+        }
+        top.insert("license".into(), json!(self.license));
+        top.insert("keys".into(), Value::Object(groups(&self.keys)));
+        let up = groups(&self.up);
+        if !up.is_empty() {
+            top.insert("up".into(), Value::Object(up));
+        }
+        let mut text = serde_json::to_string_pretty(&Value::Object(top))
+            .expect("a map of strings and lists is always JSON");
+        text.push('\n');
+        text
+    }
+}
+
 pub(super) type FieldError = (String, Kind);
 
 /// Parses and checks the text of `pack.json`. Unknown top-level fields are

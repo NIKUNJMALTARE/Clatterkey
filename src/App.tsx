@@ -57,6 +57,23 @@ function noticesFor(
 			onDismiss: view.dismissPackError,
 		});
 	}
+	if (view.importError) {
+		notices.push({
+			id: "import-error",
+			tone: "error",
+			// The core's words, whole: `Could not import "<folder>": <reason>`.
+			text: view.importError,
+			onDismiss: view.dismissImportError,
+		});
+	}
+	if (view.removeError) {
+		notices.push({
+			id: "remove-error",
+			tone: "error",
+			text: view.removeError,
+			onDismiss: view.dismissRemoveError,
+		});
+	}
 	if (view.saveError) {
 		notices.push({
 			id: "save-error",
@@ -147,12 +164,37 @@ function Settings({
 				packs={view.packs}
 				selected={view.selectedPack}
 				onPreview={view.preview}
+				importing={view.importing}
+				onImport={() => {
+					// An imported pack is chosen too, which answers the
+					// notice about the saved one.
+					void view.importPack().then((imported) => {
+						if (imported) {
+							dismiss("saved-pack");
+						}
+					});
+				}}
+				onRemove={view.removePack}
 				onChoose={(id) => {
 					// Choosing a pack answers the notice about the saved one.
 					dismiss("saved-pack");
 					view.choosePack(id);
 				}}
 			/>
+			{/*
+			 * Read out by a screen reader when a pack is imported or removed.
+			 * Not `role="status"`: the warning notices are that. The key makes
+			 * the same words a new node, so they are read a second time.
+			 */}
+			<div
+				id="pack-announcement"
+				className="visually-hidden"
+				aria-live="polite"
+			>
+				{view.announcement && (
+					<span key={view.announcement.count}>{view.announcement.text}</span>
+				)}
+			</div>
 		</>
 	);
 }

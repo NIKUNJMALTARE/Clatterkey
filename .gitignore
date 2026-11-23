@@ -12,3 +12,5 @@ coverage/
 docs/
 CLAUDE.md
 .claude/
+.playwright-mcp/
+.vitest/

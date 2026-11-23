@@ -3,6 +3,7 @@
 // Loaded only in development builds; see `index.ts`.
 import type {
 	CoreApi,
+	ImportResult,
 	PackInfo,
 	PermissionState,
 	SetResult,
@@ -38,7 +39,31 @@ const pack = (id: string, name: string, has_key_up = true): PackInfo => ({
 	author: AUTHOR,
 	license: "CC0-1.0",
 	has_key_up,
+	imported: false,
 });
+
+/** What the fake's import brings in: a plain folder wrapped as a pack. */
+const MY_CLICKS: PackInfo = {
+	id: "my-clicks",
+	name: "My clicks",
+	author: null,
+	license: "Licence not stated",
+	has_key_up: true,
+	imported: true,
+};
+
+/** An imported pack with the longest name a pack can have: 60 characters. */
+const LONG_NAME: PackInfo = {
+	id: "grandfathers-typewriter",
+	name: "Grandfather's typewriter, recorded in the attic, second take",
+	author: "A. N. Other",
+	license: "CC-BY-4.0",
+	has_key_up: false,
+	imported: true,
+};
+
+const byName = (a: PackInfo, b: PackInfo) =>
+	a.name.toLowerCase().localeCompare(b.name.toLowerCase());
 
 const PACKS: PackInfo[] = [
 	pack("blue", "Blue switches"),
@@ -64,6 +89,9 @@ const STATES = [
 	"permission-open-fails",
 	"no-key-up",
 	"preview-error",
+	"imported",
+	"import-error",
+	"remove-error",
 ] as const;
 
 type FakeState = (typeof STATES)[number];
@@ -80,7 +108,13 @@ export function createFakeCore(search: string): CoreApi {
 	const state = stateFrom(search);
 	console.info(`${FAKE_MARKER}: no Tauri core, showing state "${state}"`);
 
-	const packs = state === "no-packs" ? [] : PACKS;
+	const startsImported = state === "imported" || state === "remove-error";
+	let packs: PackInfo[] =
+		state === "no-packs"
+			? []
+			: startsImported
+				? [...PACKS, MY_CLICKS, LONG_NAME].sort(byName)
+				: PACKS;
 	// The pack playing at the start; Typewriter has no key-up sounds.
 	const first = state === "no-key-up" ? "typewriter" : "brown";
 	const settings: Settings = {
@@ -151,7 +185,7 @@ export function createFakeCore(search: string): CoreApi {
 	});
 
 	return {
-		listPacks: () => later(packs),
+		listPacks: () => later([...packs]),
 		getSettings: () => {
 			if (state === "loading") {
 				return new Promise<SettingsState>(() => {});
@@ -174,6 +208,37 @@ export function createFakeCore(search: string): CoreApi {
 			if (state === "preview-error") {
 				throw "the preview could not be started: Resource temporarily unavailable (os error 35)";
 			}
+		},
+		importPack: async (): Promise<ImportResult | null> => {
+			await later(null);
+			if (state === "import-error") {
+				throw 'Could not import "Old Board": "thock 3.wav": longer than 3 seconds';
+			}
+			const replaced = packs.some((p) => p.id === MY_CLICKS.id);
+			packs = [...packs.filter((p) => p.id !== MY_CLICKS.id), MY_CLICKS].sort(
+				byName,
+			);
+			const change = applied({ pack_id: MY_CLICKS.id }, state === "save-error");
+			return { pack: MY_CLICKS, replaced, packs: [...packs], change };
+		},
+		removePack: async (id) => {
+			await later(null);
+			const pack = packs.find((p) => p.id === id);
+			if (!pack) {
+				throw `unknown sound pack "${id}"`;
+			}
+			if (!pack.imported) {
+				throw `"${id}" is a bundled pack and cannot be removed`;
+			}
+			if (state === "remove-error") {
+				throw "Access is denied. (os error 5)";
+			}
+			packs = packs.filter((p) => p.id !== id);
+			const change =
+				playing === id || settings.pack_id === id
+					? applied({ pack_id: "brown" }, state === "save-error")
+					: null;
+			return { packs: [...packs], change };
 		},
 		permissionStatus: () => later(permission),
 		openPermissionSettings: async () => {

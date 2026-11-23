@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::audio::{Live, Player, Sink, SoundSet, builtin_click};
 use crate::keys::{KeyEvent, KeyListenError};
-use crate::packs;
+use crate::packs::{self, Library};
 use crate::permission::Keys;
 use crate::settings::DEFAULT_PACK;
 
@@ -19,6 +19,7 @@ pub type Consumer = Box<dyn FnMut(KeyEvent) + Send>;
 /// Blocks until the listener ends.
 pub type Wait = Box<dyn FnOnce() -> Result<(), KeyListenError>>;
 
+pub use crate::packs::is_pack_id;
 pub use crate::{ErrorOut, write_line};
 
 /// A listener that has been started: how to stop it, and whether it has
@@ -120,16 +121,6 @@ pub fn key_consumer(player: Player, err: ErrorOut) -> impl FnMut(KeyEvent) + Sen
     }
 }
 
-/// Whether `id` can name a bundled pack: non-empty, and only ASCII letters,
-/// digits, `-` and `_`. This rules out path separators, `.`, `..`, `:` and
-/// drive prefixes on every OS before any path is built from it.
-pub fn is_pack_id(id: &str) -> bool {
-    !id.is_empty()
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-}
-
 /// The sounds to play: the bundled pack `pack_id` in the `packs` folder,
 /// else the default pack, else the built-in click. Each fallback writes one
 /// `sound pack:` line to `err` saying why, so at most two lines are written.
@@ -151,6 +142,13 @@ pub struct Chosen {
 /// As `choose_sounds`, also saying which pack is playing and whether that
 /// is a fallback, for the settings window.
 pub fn choose_pack(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> Chosen {
+    let library = Library::new(packs.map(Path::to_path_buf), None);
+    choose_pack_in(&library, pack_id, err)
+}
+
+/// As `choose_pack`, looking for `pack_id` among the bundled packs and then
+/// the imported ones. The fallback is always the bundled default pack.
+pub fn choose_pack_in(library: &Library, pack_id: &str, err: &ErrorOut) -> Chosen {
     let chosen = |sounds, playing: &str, fell_back| Chosen {
         sounds,
         playing: Some(playing.to_string()),
@@ -158,28 +156,27 @@ pub fn choose_pack(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> Chose
     };
     let fallback = format!("using {DEFAULT_PACK:?}");
     if pack_id != DEFAULT_PACK {
-        match packs {
-            Some(dir) if is_pack_id(pack_id) && names_a_pack(dir, pack_id) => {
-                match load_pack(&dir.join(pack_id)) {
-                    Ok(sounds) => return chosen(sounds, pack_id, false),
-                    Err(reason) => write_line(err, &format!("sound pack: {reason}; {fallback}")),
-                }
-            }
-            Some(_) => write_line(
+        match library.find(pack_id) {
+            Some(found) => match load_pack(&found.dir) {
+                Ok(sounds) => return chosen(sounds, pack_id, false),
+                Err(reason) => write_line(err, &format!("sound pack: {reason}; {fallback}")),
+            },
+            None if library.has_bundled_folder() => write_line(
                 err,
                 &format!("sound pack: unknown pack {pack_id:?}; {fallback}"),
             ),
-            // With no packs folder the default pack fails too; that line
+            // With no bundled folder the default pack fails too; that line
             // says why.
             None => {}
         }
     }
-    let reason = match packs {
-        Some(dir) => match load_pack(&dir.join(DEFAULT_PACK)) {
+    let reason = if library.has_bundled_folder() {
+        match default_sounds(library) {
             Ok(sounds) => return chosen(sounds, DEFAULT_PACK, pack_id != DEFAULT_PACK),
             Err(reason) => reason,
-        },
-        None => "the bundled packs folder was not found".to_string(),
+        }
+    } else {
+        "the bundled packs folder was not found".to_string()
     };
     write_line(
         err,
@@ -192,15 +189,9 @@ pub fn choose_pack(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> Chose
     }
 }
 
-/// Whether `id` is exactly the name of a folder in `packs`. Matching on
-/// the listed names, not by opening the path, keeps ids case-sensitive on
-/// macOS and Windows too, so `"Brown"` is unknown everywhere.
-pub(crate) fn names_a_pack(packs: &Path, id: &str) -> bool {
-    std::fs::read_dir(packs).is_ok_and(|entries| {
-        entries
-            .flatten()
-            .any(|e| e.file_name() == id && e.path().is_dir())
-    })
+/// The bundled default pack's sounds, or why it cannot be used.
+pub(crate) fn default_sounds(library: &Library) -> Result<SoundSet, String> {
+    load_pack(&library.default_dir())
 }
 
 /// Loads a pack folder. A decoder that panics on a malformed file must not

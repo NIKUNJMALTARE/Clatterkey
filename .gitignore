@@ -7,3 +7,8 @@ src-tauri/gen/
 .env
 .env.*
 coverage/
+
+# Planning and pipeline files: kept on this machine only
+docs/
+CLAUDE.md
+.claude/

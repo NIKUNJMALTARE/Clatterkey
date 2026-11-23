@@ -3,8 +3,10 @@
 root=$(git rev-parse --show-toplevel)
 [ -x "$root/scripts/check.sh" ] || exit 0
 
+# CI=1 makes the format step check only: the commits being pushed cannot be
+# fixed by rewriting the working tree, so unformatted code must fail here.
 echo "pre-push: running scripts/check.sh"
-if ! "$root/scripts/check.sh"; then
+if ! CI=1 "$root/scripts/check.sh"; then
   echo "pre-push: checks failed, push refused." >&2
   exit 1
 fi

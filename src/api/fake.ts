@@ -32,11 +32,19 @@ export const FAKE_MARKER = "mks-dev-fake-core";
 
 const AUTHOR = "Mechanical Key Sounds contributors";
 
+const pack = (id: string, name: string, has_key_up = true): PackInfo => ({
+	id,
+	name,
+	author: AUTHOR,
+	license: "CC0-1.0",
+	has_key_up,
+});
+
 const PACKS: PackInfo[] = [
-	{ id: "blue", name: "Blue switches", author: AUTHOR, license: "CC0-1.0" },
-	{ id: "brown", name: "Brown switches", author: AUTHOR, license: "CC0-1.0" },
-	{ id: "red", name: "Red switches", author: AUTHOR, license: "CC0-1.0" },
-	{ id: "typewriter", name: "Typewriter", author: AUTHOR, license: "CC0-1.0" },
+	pack("blue", "Blue switches"),
+	pack("brown", "Brown switches"),
+	pack("red", "Red switches"),
+	pack("typewriter", "Typewriter", false),
 ];
 
 const STATES = [
@@ -54,6 +62,8 @@ const STATES = [
 	"permission-needed",
 	"permission-restart",
 	"permission-open-fails",
+	"no-key-up",
+	"preview-error",
 ] as const;
 
 type FakeState = (typeof STATES)[number];
@@ -71,15 +81,17 @@ export function createFakeCore(search: string): CoreApi {
 	console.info(`${FAKE_MARKER}: no Tauri core, showing state "${state}"`);
 
 	const packs = state === "no-packs" ? [] : PACKS;
+	// The pack playing at the start; Typewriter has no key-up sounds.
+	const first = state === "no-key-up" ? "typewriter" : "brown";
 	const settings: Settings = {
 		enabled: true,
-		pack_id: state === "pack-fallback" ? "nope" : "brown",
+		pack_id: state === "pack-fallback" ? "nope" : first,
 		volume: 0.8,
 		pitch_variation: 0,
 		key_up_sounds: true,
 		launch_at_login: false,
 	};
-	let playing: string | null = state === "no-packs" ? null : "brown";
+	let playing: string | null = state === "no-packs" ? null : first;
 	let revision = 0;
 	// Every state but the permission ones is a platform with no permission.
 	let permission: PermissionState =
@@ -157,6 +169,12 @@ export function createFakeCore(search: string): CoreApi {
 			return applied(patch, state === "save-error");
 		},
 		audioStatus: () => later(opening().audio),
+		preview: async () => {
+			await later(null);
+			if (state === "preview-error") {
+				throw "the preview could not be started: Resource temporarily unavailable (os error 35)";
+			}
+		},
 		permissionStatus: () => later(permission),
 		openPermissionSettings: async () => {
 			await later(null);

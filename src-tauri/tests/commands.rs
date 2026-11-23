@@ -381,15 +381,8 @@ fn ac16_enabled_must_be_a_bool() {
 #[test]
 fn ac16_fields_other_features_own_are_rejected_by_name() {
     let rig = rig(Some(&file("full")), &PACKS);
-    for field in [
-        "pitch_variation",
-        "key_up_sounds",
-        "launch_at_login",
-        "bogus",
-    ] {
-        let patch =
-            json!({ field: if field == "pitch_variation" { json!(0.1) } else { json!(true) } });
-        assert_rejected(&rig, patch);
+    for field in ["launch_at_login", "bogus"] {
+        assert_rejected(&rig, json!({ field: true }));
         let err = rig.core.set_settings(&json!({ field: true })).unwrap_err();
         assert!(err.contains(field), "{err:?} names {field}");
     }
@@ -413,7 +406,7 @@ fn ac16_one_invalid_field_rejects_the_whole_patch() {
     let rig = rig(Some(&file("full")), &PACKS);
     assert_rejected(&rig, json!({"enabled": false, "volume": 2.0}));
     assert_rejected(&rig, json!({"enabled": false, "pack_id": "nope"}));
-    assert_rejected(&rig, json!({"volume": 0.1, "pitch_variation": 0.1}));
+    assert_rejected(&rig, json!({"volume": 0.1, "launch_at_login": true}));
 }
 
 // AC19 (core half): switching packs
@@ -829,4 +822,256 @@ fn ac9_neither_waits_on_a_permission_check_that_is_blocked() {
     let (a, b) = answered.expect("answers while the check is blocked");
     assert_eq!(a, "needed");
     assert_eq!(b, "needed");
+}
+
+// Feature 09: pitch variation and key-up sounds in the patch, at start-up and
+// in the pack list.
+
+use std::sync::Mutex;
+
+fn listen(rig: &Rig) -> Arc<Mutex<Vec<Value>>> {
+    let heard = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&heard);
+    rig.core.subscribe(Box::new(move |v: &Value| {
+        sink.lock().unwrap().push(v.clone())
+    }));
+    heard
+}
+
+#[test]
+fn feature_09_ac16_a_patch_with_both_new_fields_is_in_force_saved_and_announced() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    let heard = listen(&rig);
+    let before = rig.core.get_settings()["revision"].as_u64().unwrap();
+    let result = rig
+        .core
+        .set_settings(&json!({"pitch_variation": 0.1, "key_up_sounds": true}))
+        .unwrap();
+    assert_eq!(result["settings"]["pitch_variation"], 0.1);
+    assert_eq!(result["settings"]["key_up_sounds"], true);
+    assert_eq!(result["revision"].as_u64().unwrap(), before + 1);
+    assert_eq!(result["saved"], true);
+    assert!(approx(rig.live.pitch_variation(), 0.1));
+    assert!(rig.live.key_up());
+    assert_eq!(
+        rig.settings(),
+        Settings {
+            enabled: true,
+            pack_id: "full".into(),
+            volume: 0.8,
+            pitch_variation: 0.1,
+            key_up_sounds: true,
+            launch_at_login: true,
+        },
+        "every other field is unchanged"
+    );
+    let heard = heard.lock().unwrap();
+    // The subscriber is told once on subscribing, then once for the change.
+    assert_eq!(heard.last().unwrap()["settings"]["pitch_variation"], 0.1);
+    assert_eq!(heard.last().unwrap()["revision"], result["revision"]);
+}
+
+#[test]
+fn feature_09_ac16_each_field_alone_changes_only_itself() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    rig.core
+        .set_settings(&json!({"key_up_sounds": true}))
+        .unwrap();
+    let s = rig.settings();
+    assert!(s.key_up_sounds);
+    assert_eq!(s.pitch_variation, 0.2);
+    assert!(rig.live.key_up());
+    assert!(approx(rig.live.pitch_variation(), 0.2));
+
+    rig.core
+        .set_settings(&json!({"pitch_variation": 0.05}))
+        .unwrap();
+    let s = rig.settings();
+    assert_eq!(s.pitch_variation, 0.05);
+    assert!(s.key_up_sounds);
+    assert_eq!(s.volume, 0.8);
+    assert!(approx(rig.live.pitch_variation(), 0.05));
+}
+
+#[test]
+fn feature_09_ac16_zero_and_the_upper_bound_are_accepted() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    for p in [json!(0), json!(0.0), json!(0.3)] {
+        rig.core
+            .set_settings(&json!({ "pitch_variation": p }))
+            .unwrap_or_else(|e| panic!("{p} should be accepted: {e}"));
+    }
+    assert_eq!(rig.settings().pitch_variation, 0.3);
+    assert!(approx(rig.live.pitch_variation(), 0.3));
+}
+
+fn assert_rejected_09(rig: &Rig, patch: Value) {
+    let before = rig.bytes();
+    let pitch = rig.live.pitch_variation();
+    let key_up = rig.live.key_up();
+    let revision = rig.core.get_settings()["revision"].clone();
+    let result = rig.core.set_settings(&patch);
+    assert!(
+        result.is_err(),
+        "{patch} should be rejected, got {result:?}"
+    );
+    assert_eq!(rig.bytes(), before, "{patch}: nothing is written");
+    assert_eq!(
+        rig.live.pitch_variation(),
+        pitch,
+        "{patch}: pitch unchanged"
+    );
+    assert_eq!(rig.live.key_up(), key_up, "{patch}: key-up unchanged");
+    assert_eq!(rig.core.get_settings()["revision"], revision);
+    let v = rig.core.get_settings();
+    assert_eq!(v["settings"]["pitch_variation"], 0.2);
+    assert_eq!(v["settings"]["key_up_sounds"], false);
+}
+
+#[test]
+fn feature_09_ac16_a_pitch_variation_outside_range_or_not_a_number_is_rejected() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    for p in [
+        json!(0.3000001),
+        json!(-0.01),
+        json!(1),
+        json!(1e300),
+        json!("0.1"),
+        json!("NaN"),
+        json!(null),
+        json!(true),
+        json!([0.1]),
+    ] {
+        assert_rejected_09(&rig, json!({ "pitch_variation": p }));
+    }
+}
+
+#[test]
+fn feature_09_ac16_key_up_sounds_must_be_a_bool() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    for v in [json!("true"), json!(1), json!(0), json!(null)] {
+        assert_rejected_09(&rig, json!({ "key_up_sounds": v }));
+    }
+}
+
+#[test]
+fn feature_09_ac16_one_bad_new_field_rejects_the_whole_patch() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    assert_rejected_09(
+        &rig,
+        json!({"pitch_variation": 0.1, "key_up_sounds": "yes"}),
+    );
+    assert_rejected_09(&rig, json!({"key_up_sounds": true, "pitch_variation": 0.5}));
+    assert_rejected_09(
+        &rig,
+        json!({"pitch_variation": 0.1, "launch_at_login": false}),
+    );
+}
+
+#[test]
+fn feature_09_ac16_launch_at_login_is_still_refused_by_name() {
+    let rig = rig(Some(&file("full")), &PACKS);
+    let err = rig
+        .core
+        .set_settings(&json!({"launch_at_login": false}))
+        .unwrap_err();
+    assert!(err.contains("launch_at_login"), "{err:?}");
+}
+
+#[test]
+fn feature_09_ac17_the_file_values_are_in_force_from_the_first_key_event() {
+    // `file()` holds pitch_variation 0.2 and key_up_sounds false.
+    let rig = rig(Some(&file("full")), &PACKS);
+    assert!(approx(rig.live.pitch_variation(), 0.2));
+    assert!(!rig.live.key_up());
+    rig.player.handle(down(KeyCode::KeyA));
+    rig.player.handle(up(KeyCode::KeyA));
+    let played = rig.sink.samples();
+    assert_eq!(played.len(), 1, "the key-up is silent");
+    let speed = played[0].speed();
+    assert!((0.8..=1.2).contains(&speed), "speed {speed}");
+}
+
+#[test]
+fn feature_09_ac17_a_file_with_key_up_on_and_no_pitch_plays_both_directions_unchanged() {
+    let text = file("full")
+        .replace("\"pitch_variation\": 0.2", "\"pitch_variation\": 0.0")
+        .replace("\"key_up_sounds\": false", "\"key_up_sounds\": true");
+    let rig = rig(Some(&text), &PACKS);
+    assert_eq!(rig.live.pitch_variation(), 0.0);
+    assert!(rig.live.key_up());
+    rig.player.handle(down(KeyCode::KeyA));
+    rig.player.handle(up(KeyCode::KeyA));
+    let played = rig.sink.samples();
+    assert_eq!(played.len(), 2);
+    assert!(played.iter().all(|s| s.speed() == 1.0));
+}
+
+#[test]
+fn feature_09_ac16_set_settings_drives_the_live_values_for_the_next_key() {
+    let text = file("full").replace("\"key_up_sounds\": false", "\"key_up_sounds\": true");
+    let rig = rig(Some(&text), &PACKS);
+    rig.core
+        .set_settings(&json!({"key_up_sounds": false, "pitch_variation": 0.0}))
+        .unwrap();
+    rig.player.handle(down(KeyCode::KeyA));
+    rig.player.handle(up(KeyCode::KeyA));
+    assert_eq!(rig.sink.count(), 1);
+    assert_eq!(rig.sink.samples()[0].speed(), 1.0);
+}
+
+#[test]
+fn feature_09_ac18_every_listed_pack_says_whether_it_has_key_up_sounds() {
+    let rig = rig(
+        Some(&file("full")),
+        &[
+            ("full", "full"),
+            ("plain", "default-only"),
+            ("noup", "no-up"),
+            ("spaceup", "up-space-only"),
+        ],
+    );
+    let list = rig.core.list_packs();
+    let flag = |id: &str| {
+        list.as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == id)
+            .unwrap_or_else(|| panic!("{id} is listed"))["has_key_up"]
+            .clone()
+    };
+    assert_eq!(flag("full"), true);
+    assert_eq!(flag("spaceup"), true, "one group is enough");
+    assert_eq!(flag("plain"), false, "no up section");
+    assert_eq!(flag("noup"), false);
+}
+
+#[test]
+fn feature_09_ac18_empty_up_groups_do_not_count_and_no_audio_is_opened() {
+    let rig = rig_with(Some(&file("full")), &[], |packs| {
+        let dir = packs.join("emptyup");
+        fs::create_dir_all(&dir).unwrap();
+        // The listed files do not exist: listing must not open audio.
+        fs::write(
+            dir.join("pack.json"),
+            r#"{"name":"Empty up","license":"CC0-1.0",
+                "keys":{"default":["down/missing.wav"]},
+                "up":{"default":[],"space":[]}}"#,
+        )
+        .unwrap();
+        let dir = packs.join("hasup");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("pack.json"),
+            r#"{"name":"Has up","license":"CC0-1.0",
+                "keys":{"default":["down/missing.wav"]},
+                "up":{"default":[],"enter":["up/missing.wav"]}}"#,
+        )
+        .unwrap();
+    });
+    let list = rig.core.list_packs();
+    let rows = list.as_array().unwrap();
+    let flag = |id: &str| rows.iter().find(|r| r["id"] == id).unwrap()["has_key_up"].clone();
+    assert_eq!(flag("emptyup"), false);
+    assert_eq!(flag("hasup"), true);
 }

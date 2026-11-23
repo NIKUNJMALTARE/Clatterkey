@@ -12,6 +12,7 @@ vi.mock("./api", () => ({
 	openPermissionSettings: vi.fn(),
 	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
+	preview: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -32,7 +33,7 @@ describe("AC11: roles, names and keyboard", () => {
 
 	it("AC11: every radio is named after its pack", async () => {
 		render(<App />);
-		await screen.findByRole("switch");
+		await screen.findByRole("switch", { name: "Sound" });
 		for (const name of [
 			"Blue switches",
 			"Brown switches",
@@ -72,7 +73,7 @@ describe("AC11: roles, names and keyboard", () => {
 
 	it("AC11: the slider is a native range input, which gives the arrow, Page and Home/End keys", async () => {
 		render(<App />);
-		await screen.findByRole("switch");
+		await screen.findByRole("switch", { name: "Sound" });
 		const slider = screen.getByRole("slider", {
 			name: "Volume",
 		}) as HTMLInputElement;
@@ -82,7 +83,7 @@ describe("AC11: roles, names and keyboard", () => {
 
 	it("AC11: the slider's value is announced as a percentage", async () => {
 		render(<App />);
-		await screen.findByRole("switch");
+		await screen.findByRole("switch", { name: "Sound" });
 		expect(screen.getByRole("slider", { name: "Volume" })).toHaveAttribute(
 			"aria-valuetext",
 			"80%",
@@ -109,7 +110,7 @@ describe("AC11: roles, names and keyboard", () => {
 			}),
 		);
 		render(<App />);
-		await screen.findByRole("switch");
+		await screen.findByRole("switch", { name: "Sound" });
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 		const noticeCount =
@@ -120,7 +121,7 @@ describe("AC11: roles, names and keyboard", () => {
 
 	it("AC11: the pack list is a group with the legend Sound pack, scrolled as one list", async () => {
 		render(<App />);
-		await screen.findByRole("switch");
+		await screen.findByRole("switch", { name: "Sound" });
 		const group = screen.getByRole("radiogroup", { name: "Sound pack" });
 		expect(group).toBeInTheDocument();
 	});

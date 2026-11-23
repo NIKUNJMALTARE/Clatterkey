@@ -375,3 +375,17 @@ fn ac4_no_two_files_across_the_packs_are_identical() {
         );
     }
 }
+
+// Feature 09 AC18: the bundled packs' key-up flags.
+
+#[test]
+fn feature_09_ac18_the_switch_packs_have_key_up_sounds_and_typewriter_does_not() {
+    for id in IDS {
+        let info = packs::read_info(&pack_dir(id)).unwrap_or_else(|e| panic!("{id}: {e}"));
+        assert_eq!(
+            info.has_key_up,
+            SWITCH_IDS.contains(&id),
+            "pack {id}: has_key_up"
+        );
+    }
+}

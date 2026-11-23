@@ -12,6 +12,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use serde_json::Value;
 use tauri::{AppHandle, State};
 
+use crate::audio::Previewer;
 use crate::keys::permission::SystemAccess;
 use crate::permission::{self, Os, Permission};
 
@@ -76,6 +77,16 @@ pub fn audio_status(gate: State<'_, Arc<CoreGate>>) -> &'static str {
 #[tauri::command(async)]
 pub fn permission_status(gate: State<'_, Arc<CoreGate>>) -> &'static str {
     gate.wait().permission_status()
+}
+
+/// The Preview button: plays a short phrase with the sounds in force, and
+/// returns once it has started. It changes no setting.
+#[tauri::command(async)]
+pub fn preview(
+    gate: State<'_, Arc<CoreGate>>,
+    previewer: State<'_, Arc<Previewer>>,
+) -> Result<(), String> {
+    previewer.start(gate.wait().live())
 }
 
 /// The "Open System Settings" button. `false` where there is no permission

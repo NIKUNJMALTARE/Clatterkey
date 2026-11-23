@@ -163,3 +163,58 @@ fn feature_06_ac18_overlapping_sounds_each_keep_their_own_gain() {
         assert!(approx(*v, click.samples()[i]), "frame {i}");
     }
 }
+
+// Feature 09 AC14: the output plays a sound at its speed factor.
+
+#[test]
+fn feature_09_ac14_a_sound_plays_for_its_length_divided_by_the_speed() {
+    let frames = 4_800_usize; // 100 ms at 48 kHz
+    for speed in [0.7_f32, 1.0, 1.3] {
+        let (sink, mut source) = mono_mixer(RATE);
+        let sample = Sample::new(1, RATE, vec![0.4; frames]).tuned(1.0, speed);
+        sink.play(&sample);
+        let out = source.by_ref().count();
+        let expected = frames as f64 / f64::from(speed);
+        assert!(
+            (out as f64 - expected).abs() <= 1.0,
+            "speed {speed}: {out} frames, expected {expected}"
+        );
+    }
+}
+
+#[test]
+fn feature_09_ac14_speed_one_is_sample_for_sample_what_it_was() {
+    let (sink, mut source) = mono_mixer(RATE);
+    let click = ramp(60);
+    sink.play(&click.tuned(1.0, 1.0));
+    let out: Vec<f32> = source.by_ref().collect();
+    assert_eq!(out, click.samples());
+}
+
+#[test]
+fn feature_09_ac14_the_gain_is_still_applied_at_another_speed() {
+    for speed in [0.7_f32, 1.3] {
+        let (sink, mut source) = mono_mixer(RATE);
+        let sample = Sample::new(1, RATE, vec![0.4; 4_800]).tuned(0.5, speed);
+        sink.play(&sample);
+        let out: Vec<f32> = source.by_ref().collect();
+        let middle = &out[out.len() / 4..out.len() * 3 / 4];
+        for v in middle {
+            assert!(
+                approx(*v, 0.2) || (v - 0.2).abs() < 1e-3,
+                "speed {speed}: {v}"
+            );
+        }
+    }
+}
+
+#[test]
+fn feature_09_ac14_a_faster_sound_ends_sooner_when_played_with_a_slower_one() {
+    let (sink, mut source) = mono_mixer(RATE);
+    sink.play(&Sample::new(1, RATE, vec![0.1; 4_800]).tuned(1.0, 2.0));
+    let frames = source.by_ref().count();
+    assert!(
+        (frames as i64 - 2_400).abs() <= 1,
+        "double speed halves the length: {frames}"
+    );
+}

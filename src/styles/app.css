@@ -80,6 +80,33 @@ h2 {
 	font-weight: var(--font-weight-strong);
 }
 
+/* The sliders' labels take the same width, so their tracks line up. */
+.row-slider .row-title {
+	min-width: 8em;
+}
+
+/* A row whose control has a line of explanation under it. */
+.row-with-note {
+	flex-wrap: wrap;
+	row-gap: var(--space-1);
+}
+
+.row-note {
+	flex: 0 0 100%;
+	margin: 0;
+	color: var(--color-text-muted);
+	font-size: var(--font-size-secondary);
+}
+
+/* A section's heading with its button on the same line. */
+.section-head {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
 /* The switch: a native checkbox drawn as a track and a thumb. */
 .switch {
 	appearance: none;

@@ -56,6 +56,7 @@ pub fn read_info(dir: &Path) -> Result<PackInfo, PackError> {
     match read_manifest(dir) {
         Ok(manifest) => Ok(PackInfo {
             id,
+            has_key_up: manifest.up.iter().any(|files| !files.is_empty()),
             name: manifest.name,
             author: manifest.author,
             license: manifest.license,

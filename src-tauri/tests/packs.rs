@@ -912,3 +912,35 @@ fn ac9_a_clean_float_wav_decodes() {
     let values = vec![0.5f32; 400];
     assert!(decode(wav_float(&values), Duration::from_secs(3)).is_ok());
 }
+
+// ---- Feature 09 AC18: has_key_up, read from pack.json alone ----
+
+#[test]
+fn feature_09_ac18_read_info_says_whether_a_pack_has_key_up_sounds() {
+    use mechanical_key_sounds_lib::packs::read_info;
+    assert!(read_info(&fixture_pack("full")).unwrap().has_key_up);
+    assert!(
+        read_info(&fixture_pack("up-space-only"))
+            .unwrap()
+            .has_key_up
+    );
+    assert!(!read_info(&fixture_pack("no-up")).unwrap().has_key_up);
+    assert!(!read_info(&fixture_pack("default-only")).unwrap().has_key_up);
+}
+
+#[test]
+fn feature_09_ac18_empty_up_groups_do_not_count_and_no_audio_file_is_opened() {
+    use mechanical_key_sounds_lib::packs::read_info;
+    let pack = TestPack::new(
+        "emptyup",
+        r#"{"name":"E","license":"CC0-1.0","keys":{"default":["a.wav"]},"up":{"default":[],"space":[]}}"#,
+    );
+    // `a.wav` does not exist: reading the info must not open it.
+    assert!(!read_info(&pack.dir).unwrap().has_key_up);
+
+    let pack = TestPack::new(
+        "oneup",
+        r#"{"name":"E","license":"CC0-1.0","keys":{"default":["a.wav"]},"up":{"default":[],"enter":["u.wav"]}}"#,
+    );
+    assert!(read_info(&pack.dir).unwrap().has_key_up);
+}

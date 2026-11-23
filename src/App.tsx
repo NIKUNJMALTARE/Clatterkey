@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { KeyUpSwitch } from "./components/KeyUpSwitch";
 import { type Notice, Notices } from "./components/Notices";
 import { PackList } from "./components/PackList";
 import {
 	PERMISSION_HEADING_ID,
 	PermissionScreen,
 } from "./components/PermissionScreen";
+import { PitchSlider } from "./components/PitchSlider";
 import { SOUND_SWITCH_ID, SoundSwitch } from "./components/SoundSwitch";
 import { VolumeSlider } from "./components/VolumeSlider";
 import { type Ready, useSettings } from "./useSettings";
@@ -70,6 +72,14 @@ function noticesFor(
 			onDismiss: view.dismissChangeError,
 		});
 	}
+	if (view.previewError) {
+		notices.push({
+			id: "preview-error",
+			tone: "error",
+			text: `Could not play the preview: ${view.previewError}`,
+			onDismiss: view.dismissPreviewError,
+		});
+	}
 	if (!dismissed.has("settings-file")) {
 		if (startup.settings_unreadable) {
 			notices.push({
@@ -122,10 +132,21 @@ function Settings({
 					onChange={view.setVolumePercent}
 					onRelease={view.flushVolume}
 				/>
+				<PitchSlider
+					percent={view.pitchPercent}
+					onChange={view.setPitchPercent}
+					onRelease={view.flushPitch}
+				/>
+				<KeyUpSwitch
+					on={view.keyUpSounds}
+					note={view.keyUpNote}
+					onChange={view.setKeyUpSounds}
+				/>
 			</section>
 			<PackList
 				packs={view.packs}
 				selected={view.selectedPack}
+				onPreview={view.preview}
 				onChoose={(id) => {
 					// Choosing a pack answers the notice about the saved one.
 					dismiss("saved-pack");

@@ -15,24 +15,28 @@ export const PACKS: PackInfo[] = [
 		name: "Blue switches",
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
+		has_key_up: true,
 	},
 	{
 		id: "brown",
 		name: "Brown switches",
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
+		has_key_up: true,
 	},
 	{
 		id: "red",
 		name: "Red switches",
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
+		has_key_up: true,
 	},
 	{
 		id: "typewriter",
 		name: "Typewriter",
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
+		has_key_up: false,
 	},
 ];
 
@@ -95,6 +99,7 @@ export function healthyCore(initial: SettingsState = state(), packs = PACKS) {
 	);
 	vi.mocked(api.openPermissionSettings).mockResolvedValue(undefined);
 	vi.mocked(api.restartApp).mockResolvedValue(undefined);
+	vi.mocked(api.preview).mockResolvedValue(undefined);
 	vi.mocked(api.setSettings).mockImplementation(async (patch) => {
 		const r = result(current, patch);
 		current = {

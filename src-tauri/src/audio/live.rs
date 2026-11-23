@@ -1,5 +1,6 @@
 //! What the settings change while keys are being played: sound on or off,
-//! the volume, and the sound set. The key thread reads it; the settings
+//! the volume, the pitch variation, key-up sounds on or off, and the sound
+//! set. The key thread reads it; the settings
 //! side writes it. The key thread never waits for a writer.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -7,12 +8,19 @@ use std::sync::{Arc, Mutex, TryLockError};
 
 use super::SoundSet;
 
+/// The most the pitch variation can be.
+pub const MAX_PITCH_VARIATION: f64 = 0.3;
+
 /// The state shared by the player and the settings.
 #[derive(Debug)]
 pub struct Live {
     enabled: AtomicBool,
     /// The bits of the gain, an `f32`.
     gain: AtomicU32,
+    /// The bits of the pitch variation, an `f32` from 0.0 to 0.3.
+    pitch: AtomicU32,
+    /// Whether a key going up plays its sound.
+    key_up: AtomicBool,
     /// The sound set to play. Locked only to swap or copy the pointer.
     sounds: Mutex<Arc<SoundSet>>,
     /// Goes up each time `sounds` is replaced.
@@ -20,11 +28,14 @@ pub struct Live {
 }
 
 impl Live {
-    /// Sound on, at full volume, playing `sounds`.
+    /// Sound on, at full volume, with no pitch variation and key-up sounds
+    /// on, playing `sounds`.
     pub fn new(sounds: SoundSet) -> Self {
         Self {
             enabled: AtomicBool::new(true),
             gain: AtomicU32::new(1.0_f32.to_bits()),
+            pitch: AtomicU32::new(0.0_f32.to_bits()),
+            key_up: AtomicBool::new(true),
             sounds: Mutex::new(Arc::new(sounds)),
             version: AtomicU64::new(0),
         }
@@ -53,6 +64,37 @@ impl Live {
     /// What each sample is multiplied by.
     pub fn gain(&self) -> f32 {
         f32::from_bits(self.gain.load(Ordering::Relaxed))
+    }
+
+    /// Sets how far each sound's speed may stray from normal, 0.0 to 0.3.
+    /// At 0.0 every sound plays as recorded.
+    pub fn set_pitch_variation(&self, variation: f64) {
+        let variation = if variation.is_nan() {
+            0.0
+        } else {
+            variation.clamp(0.0, MAX_PITCH_VARIATION)
+        };
+        self.pitch
+            .store((variation as f32).to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn pitch_variation(&self) -> f32 {
+        f32::from_bits(self.pitch.load(Ordering::Relaxed))
+    }
+
+    /// Whether a key going up plays its sound, from the next key release.
+    pub fn set_key_up(&self, on: bool) {
+        self.key_up.store(on, Ordering::Relaxed);
+    }
+
+    pub fn key_up(&self) -> bool {
+        self.key_up.load(Ordering::Relaxed)
+    }
+
+    /// The sound set in force now, waiting for a writer's pointer swap to
+    /// finish. For the preview; not for the key path.
+    pub fn snapshot(&self) -> Arc<SoundSet> {
+        self.sounds().1
     }
 
     /// Plays `sounds` from the next key event. The set must be complete

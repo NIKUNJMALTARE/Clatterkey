@@ -5,7 +5,7 @@
 use std::fmt;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Arc, Mutex, TryLockError};
+use std::sync::{Arc, RwLock, TryLockError};
 use std::time::Duration;
 
 use super::device::DeviceBackend;
@@ -79,9 +79,13 @@ impl StatusHandle {
 
 /// The sink the key path plays into. It forwards to whichever output is open
 /// now and drops the sound when there is none: nothing is queued.
+///
+/// Key presses and a preview play through it from two threads. Playing only
+/// reads the pointer, so the two never keep each other out; only the
+/// supervisor swapping the output writes it.
 #[derive(Default)]
 pub struct SinkSlot {
-    current: Mutex<Option<Arc<dyn Sink>>>,
+    current: RwLock<Option<Arc<dyn Sink>>>,
 }
 
 impl SinkSlot {
@@ -99,11 +103,11 @@ impl SinkSlot {
         *self.lock() = None;
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Option<Arc<dyn Sink>>> {
+    fn lock(&self) -> std::sync::RwLockWriteGuard<'_, Option<Arc<dyn Sink>>> {
         // The guarded value is a plain pointer swap, so a poisoned lock is
         // still in a usable state.
         self.current
-            .lock()
+            .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
@@ -113,7 +117,7 @@ impl Sink for SinkSlot {
     /// is dropped, as it would be with no output. The lock is released
     /// before the sound is handed on.
     fn play(&self, sample: &Sample) {
-        let sink = match self.current.try_lock() {
+        let sink = match self.current.try_read() {
             Ok(current) => current.clone(),
             Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner().clone(),
             Err(TryLockError::WouldBlock) => None,

@@ -6,6 +6,7 @@ export interface Settings {
 	pack_id: string;
 	/** 0 to 1. */
 	volume: number;
+	/** 0 to 0.3: how far each sound's speed may stray from normal. */
 	pitch_variation: number;
 	key_up_sounds: boolean;
 	launch_at_login: boolean;
@@ -16,6 +17,8 @@ export interface PackInfo {
 	name: string;
 	author: string | null;
 	license: string;
+	/** Whether the pack has a sound for any key going up. */
+	has_key_up: boolean;
 }
 
 /** What went wrong when the app started, if anything. */
@@ -53,7 +56,10 @@ export interface SettingsState {
 
 /** The fields this window can change. */
 export type SettingsPatch = Partial<
-	Pick<Settings, "enabled" | "volume" | "pack_id">
+	Pick<
+		Settings,
+		"enabled" | "volume" | "pack_id" | "pitch_variation" | "key_up_sounds"
+	>
 >;
 
 export interface SetResult {
@@ -78,6 +84,11 @@ export interface CoreApi {
 	getSettings(): Promise<SettingsState>;
 	setSettings(patch: SettingsPatch): Promise<SetResult>;
 	audioStatus(): Promise<AudioStatus>;
+	/**
+	 * Plays a short typed phrase with the sounds in force, even when sound
+	 * is off. Resolves once it has started; changes no setting.
+	 */
+	preview(): Promise<void>;
 	permissionStatus(): Promise<PermissionState>;
 	/**
 	 * Asks macOS for the permission and opens System Settings on the Input

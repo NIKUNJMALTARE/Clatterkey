@@ -25,7 +25,8 @@ jobs:
           workspaces: src-tauri
 
       # Linux is not a supported target, but the code must compile here.
-      - name: Install Tauri Linux build packages
+      # libasound2-dev is for the audio library (ALSA).
+      - name: Install Linux build packages
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -37,7 +38,8 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev
+            librsvg2-dev \
+            libasound2-dev
 
       - name: Install npm dependencies
         run: npm ci

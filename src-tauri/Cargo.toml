@@ -20,6 +20,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2.12", features = [] }
+# Audio output and mixer. No decoders: the built-in click is generated in code.
+rodio = { version = "0.23", default-features = false, features = ["playback"] }
 
 # Key capture. Each back end is declared only for its own OS, so other
 # targets (the Linux check) compile with no key-capture code at all.

@@ -1,0 +1,7 @@
+{
+  "name": "Extra field",
+  "license": "CC0-1.0",
+  "version": 7,
+  "homepage": "https://example.invalid",
+  "keys": { "default": ["down/a1.wav", "down/a2.wav", "down/a3.wav"] }
+}

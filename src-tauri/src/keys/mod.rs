@@ -7,6 +7,7 @@
 
 mod code;
 mod filter;
+mod group;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "windows")]
@@ -19,6 +20,7 @@ use std::thread::JoinHandle;
 
 pub use code::KeyCode;
 pub use filter::{KeyEvent, KeyKind, RawKey, RepeatFilter};
+pub use group::{KeyGroup, group_of};
 
 /// Why the listener could not run.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -13,6 +13,7 @@
 		"test": "vitest run",
 		"keys": "cargo run --manifest-path src-tauri/Cargo.toml --example keys",
 		"make-packs": "cargo run --manifest-path src-tauri/Cargo.toml --example make-packs",
+		"make-tray-icons": "cargo run --manifest-path src-tauri/Cargo.toml --example make-tray-icons",
 		"prepare": "node scripts/prepare.mjs"
 	},
 	"dependencies": {

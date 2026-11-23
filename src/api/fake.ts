@@ -6,8 +6,23 @@ import type {
 	PackInfo,
 	SetResult,
 	Settings,
+	SettingsPatch,
 	SettingsState,
 } from "./types";
+
+/**
+ * Stands in for the tray in a plain browser: `window.__mksFake` changes the
+ * settings from outside the window, as the tray's "Sound" item does.
+ */
+export interface FakeControls {
+	outsideChange(patch: SettingsPatch, options?: { saveFails?: boolean }): void;
+}
+
+declare global {
+	interface Window {
+		__mksFake?: FakeControls;
+	}
+}
 
 /** Only the fake contains this text; the build is checked for its absence. */
 export const FAKE_MARKER = "mks-dev-fake-core";
@@ -59,6 +74,34 @@ export function createFakeCore(search: string): CoreApi {
 		launch_at_login: false,
 	};
 	let playing: string | null = state === "no-packs" ? null : "brown";
+	let revision = 0;
+	const listeners = new Set<(result: SetResult) => void>();
+
+	/** Applies a change as the core does and tells every listener. */
+	const applied = (patch: SettingsPatch, failed: boolean): SetResult => {
+		Object.assign(settings, patch);
+		if (patch.pack_id !== undefined) {
+			playing = patch.pack_id;
+		}
+		revision += 1;
+		const result: SetResult = {
+			settings: { ...settings },
+			playing_pack: playing,
+			saved: !failed,
+			save_error: failed ? "Permission denied (os error 13)" : null,
+			revision,
+		};
+		for (const listener of [...listeners]) {
+			listener(result);
+		}
+		return result;
+	};
+
+	window.__mksFake = {
+		outsideChange: (patch, options) => {
+			applied(patch, options?.saveFails ?? false);
+		},
+	};
 
 	const opening = (): SettingsState => ({
 		settings: { ...settings },
@@ -75,6 +118,7 @@ export function createFakeCore(search: string): CoreApi {
 				: state === "audio-error"
 					? "failed"
 					: "playing",
+		revision,
 	});
 
 	return {
@@ -93,19 +137,14 @@ export function createFakeCore(search: string): CoreApi {
 			if (patch.pack_id !== undefined && state === "pack-load-error") {
 				throw `pack "${patch.pack_id}": keys.default[0] "down/default-1.wav": file not found`;
 			}
-			Object.assign(settings, patch);
-			if (patch.pack_id !== undefined) {
-				playing = patch.pack_id;
-			}
-			const failed = state === "save-error";
-			const result: SetResult = {
-				settings: { ...settings },
-				playing_pack: playing,
-				saved: !failed,
-				save_error: failed ? "Permission denied (os error 13)" : null,
-			};
-			return result;
+			return applied(patch, state === "save-error");
 		},
 		audioStatus: () => later(opening().audio),
+		onSettingsChanged: async (listener) => {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		},
 	};
 }

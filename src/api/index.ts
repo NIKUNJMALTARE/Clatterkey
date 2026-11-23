@@ -7,6 +7,7 @@ import type {
 	SetResult,
 	SettingsPatch,
 	SettingsState,
+	Unsubscribe,
 } from "./types";
 
 let chosen: Promise<CoreApi> | undefined;
@@ -46,4 +47,10 @@ export async function setSettings(patch: SettingsPatch): Promise<SetResult> {
 
 export async function audioStatus(): Promise<AudioStatus> {
 	return (await core()).audioStatus();
+}
+
+export async function onSettingsChanged(
+	listener: (result: SetResult) => void,
+): Promise<Unsubscribe> {
+	return (await core()).onSettingsChanged(listener);
 }

@@ -8,6 +8,7 @@ vi.mock("./api", () => ({
 	getSettings: vi.fn(),
 	setSettings: vi.fn(),
 	audioStatus: vi.fn(),
+	onSettingsChanged: vi.fn(),
 }));
 
 beforeEach(() => {

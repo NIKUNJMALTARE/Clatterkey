@@ -2,9 +2,19 @@
 
 A small desktop app for macOS and Windows that plays the sound of a mechanical keyboard every time you press a key, in any app. Everything is local; there are no accounts.
 
-The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs: blue, brown and red switches, and a typewriter. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved. Closing the window quits the app.
+The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs: blue, brown and red switches, and a typewriter. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
 
 On macOS the app can only hear key presses once it has the Accessibility / Input Monitoring permission in System Settings, Privacy & Security. Without it the app runs and is silent. It notices only that a key went down: it never records, stores or sends which key it was.
+
+### The tray
+
+The app lives in the tray: the menu bar on macOS, the notification area on Windows. Closing the settings window does not quit it; keys keep sounding.
+
+- **Sound** turns the sound on or off. The icon is dimmed while it is off.
+- **Settings…** shows the settings window. On Windows a left click on the icon does the same.
+- **Quit Mechanical Key Sounds** stops the app.
+
+On macOS the Dock icon is there only while the settings window is open. Starting the app while it is already running shows its settings window; it does not start a second copy.
 
 ## Development
 
@@ -16,6 +26,7 @@ You need Node 22 or later and Rust 1.96 (installed by `rustup` from `rust-toolch
 | Run locally | `npm run tauri dev` |
 | Print key events (dev tool) | `npm run keys` |
 | Regenerate the bundled packs | `npm run make-packs` |
+| Regenerate the tray icons | `npm run make-tray-icons` |
 | Tests | `npm test && cargo test --manifest-path src-tauri/Cargo.toml` |
 | All checks | `scripts/check.sh` |
 
@@ -47,7 +58,7 @@ The settings window has a Sound switch, a volume slider and the list of sound pa
 
 An unknown pack plays `brown`, and a broken settings file is left as it is with the defaults in use. Either way the window shows a notice, and one line starting `sound pack:` or `settings:` is printed. A broken file is replaced the first time a setting is changed in the window.
 
-To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error` or `no-packs` to see that state.
+To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error` or `no-packs` to see that state. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console.
 
 ### The bundled packs
 

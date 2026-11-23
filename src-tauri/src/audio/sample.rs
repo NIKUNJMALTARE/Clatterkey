@@ -10,6 +10,9 @@ pub struct Sample {
     data: Arc<[f32]>,
     channels: u16,
     sample_rate: u32,
+    /// How loud to play it: each value is multiplied by this as it is read
+    /// for the mixer. The data itself is never changed.
+    gain: f32,
 }
 
 impl Sample {
@@ -20,7 +23,24 @@ impl Sample {
             data: data.into(),
             channels: channels.max(1),
             sample_rate: sample_rate.max(1),
+            gain: 1.0,
         }
+    }
+
+    /// The same sound at `gain`, sharing the buffer. The gain replaces the
+    /// one this sample had; it is not multiplied with it.
+    pub fn with_gain(&self, gain: f32) -> Sample {
+        Sample {
+            data: Arc::clone(&self.data),
+            channels: self.channels,
+            sample_rate: self.sample_rate,
+            gain,
+        }
+    }
+
+    /// 1.0 plays the sound as it is; 0.0 is silent.
+    pub fn gain(&self) -> f32 {
+        self.gain
     }
 
     pub fn samples(&self) -> &[f32] {
@@ -41,6 +61,7 @@ impl Sample {
     }
 
     /// Whether both are the very same buffer in memory, not merely equal.
+    /// The gain is not compared.
     pub fn same_buffer(&self, other: &Sample) -> bool {
         Arc::ptr_eq(&self.data, &other.data)
     }

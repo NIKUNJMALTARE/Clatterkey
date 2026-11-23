@@ -14,6 +14,7 @@ use crate::audio::{DecodeError, SoundSet};
 
 pub use load::{
     MAX_FILE_BYTES, MAX_FILE_LENGTH, MAX_FILES, MAX_MANIFEST_BYTES, MAX_TOTAL_LENGTH, load,
+    read_info,
 };
 
 /// A loaded pack, every sound in memory.
@@ -25,6 +26,16 @@ pub struct Pack {
     pub author: Option<String>,
     pub license: String,
     pub sounds: SoundSet,
+}
+
+/// What `pack.json` says about a pack, without its sounds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackInfo {
+    /// The folder's name.
+    pub id: String,
+    pub name: String,
+    pub author: Option<String>,
+    pub license: String,
 }
 
 /// Why a pack was rejected. Shown as one line:

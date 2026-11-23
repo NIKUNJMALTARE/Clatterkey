@@ -1,0 +1,111 @@
+// An in-memory core for viewing the window in a plain browser during
+// development, where there is no Tauri. `?state=` picks what it shows.
+// Loaded only in development builds; see `index.ts`.
+import type {
+	CoreApi,
+	PackInfo,
+	SetResult,
+	Settings,
+	SettingsState,
+} from "./types";
+
+/** Only the fake contains this text; the build is checked for its absence. */
+export const FAKE_MARKER = "mks-dev-fake-core";
+
+const AUTHOR = "Mechanical Key Sounds contributors";
+
+const PACKS: PackInfo[] = [
+	{ id: "blue", name: "Blue switches", author: AUTHOR, license: "CC0-1.0" },
+	{ id: "brown", name: "Brown switches", author: AUTHOR, license: "CC0-1.0" },
+	{ id: "red", name: "Red switches", author: AUTHOR, license: "CC0-1.0" },
+	{ id: "typewriter", name: "Typewriter", author: AUTHOR, license: "CC0-1.0" },
+];
+
+const STATES = [
+	"normal",
+	"loading",
+	"load-error",
+	"no-audio",
+	"audio-error",
+	"settings-invalid",
+	"fields-reset",
+	"pack-fallback",
+	"pack-load-error",
+	"save-error",
+	"no-packs",
+] as const;
+
+type FakeState = (typeof STATES)[number];
+
+function stateFrom(search: string): FakeState {
+	const asked = new URLSearchParams(search).get("state");
+	return STATES.find((s) => s === asked) ?? "normal";
+}
+
+const later = <T>(value: T): Promise<T> =>
+	new Promise((resolve) => setTimeout(() => resolve(value), 30));
+
+export function createFakeCore(search: string): CoreApi {
+	const state = stateFrom(search);
+	console.info(`${FAKE_MARKER}: no Tauri core, showing state "${state}"`);
+
+	const packs = state === "no-packs" ? [] : PACKS;
+	const settings: Settings = {
+		enabled: true,
+		pack_id: state === "pack-fallback" ? "nope" : "brown",
+		volume: 0.8,
+		pitch_variation: 0,
+		key_up_sounds: true,
+		launch_at_login: false,
+	};
+	let playing: string | null = state === "no-packs" ? null : "brown";
+
+	const opening = (): SettingsState => ({
+		settings: { ...settings },
+		playing_pack: playing,
+		startup: {
+			settings_unreadable: state === "settings-invalid",
+			replaced_fields:
+				state === "fields-reset" ? ["volume", "key_up_sounds"] : [],
+			unusable_pack: state === "pack-fallback" ? "nope" : null,
+		},
+		audio:
+			state === "no-audio"
+				? "no_device"
+				: state === "audio-error"
+					? "failed"
+					: "playing",
+	});
+
+	return {
+		listPacks: () => later(packs),
+		getSettings: () => {
+			if (state === "loading") {
+				return new Promise<SettingsState>(() => {});
+			}
+			if (state === "load-error") {
+				return Promise.reject("the core did not answer");
+			}
+			return later(opening());
+		},
+		setSettings: async (patch) => {
+			await later(null);
+			if (patch.pack_id !== undefined && state === "pack-load-error") {
+				throw `pack "${patch.pack_id}": keys.default[0] "down/default-1.wav": file not found`;
+			}
+			Object.assign(settings, patch);
+			if (patch.pack_id !== undefined) {
+				playing = patch.pack_id;
+			}
+			const failed = state === "save-error";
+			const result: SetResult = {
+				settings: { ...settings },
+				playing_pack: playing,
+				saved: !failed,
+				save_error: failed ? "Permission denied (os error 13)" : null,
+			};
+			return result;
+		},
+		audioStatus: () => later(opening().audio),
+	};
+}

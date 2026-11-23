@@ -4,12 +4,13 @@
 //! files: `device` (the output) and `decode` (audio files into samples).
 //! Everything else here is plain code tested with fakes: the built-in click,
 //! the sound sets and their random choice, the player that turns a key event
-//! into a sound, and the supervisor that keeps an output open as devices
+//! into a sound, the live state the settings change under it, and the supervisor that keeps an output open as devices
 //! come and go.
 
 mod click;
 mod decode;
 mod device;
+mod live;
 mod output;
 mod player;
 mod sample;
@@ -17,6 +18,7 @@ mod sounds;
 
 pub use click::builtin_click;
 pub use decode::{DecodeError, decode};
+pub use live::Live;
 pub use output::{
     AudioError, Backend, OutputHandle, OutputStatus, SinkSlot, StatusHandle, Supervisor,
     spawn_output,

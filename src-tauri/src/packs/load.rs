@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use super::manifest::{self, Manifest};
 use super::paths::{self, PathError};
-use super::{Pack, PackError, PackErrorKind as Kind};
+use super::{Pack, PackError, PackErrorKind as Kind, PackInfo};
 use crate::audio::{self, Sample, SoundSet};
 use crate::keys::KeyGroup;
 
@@ -34,13 +34,45 @@ struct Entry {
     path: PathBuf,
 }
 
+/// The pack's id: its folder's name, or the path given if it has none.
+fn id_of(dir: &Path) -> String {
+    dir.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| dir.display().to_string())
+}
+
+/// Reads and checks the `pack.json` in `dir`, as `load` does, and opens no
+/// audio file. For listing packs.
+pub fn read_info(dir: &Path) -> Result<PackInfo, PackError> {
+    let id = id_of(dir);
+    if !dir.is_dir() {
+        return Err(PackError {
+            pack: id,
+            field: None,
+            file: None,
+            kind: Kind::FolderNotFound,
+        });
+    }
+    match read_manifest(dir) {
+        Ok(manifest) => Ok(PackInfo {
+            id,
+            name: manifest.name,
+            author: manifest.author,
+            license: manifest.license,
+        }),
+        Err((field, kind)) => Err(PackError {
+            pack: id,
+            field,
+            file: None,
+            kind,
+        }),
+    }
+}
+
 /// Loads the pack in `dir`. Every file is decoded into memory before this
 /// returns; if anything is wrong, the whole pack is rejected.
 pub fn load(dir: &Path) -> Result<Pack, PackError> {
-    let id = dir
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| dir.display().to_string());
+    let id = id_of(dir);
     let fail = |field: Option<String>, file: Option<String>, kind: Kind| PackError {
         pack: id.clone(),
         field,

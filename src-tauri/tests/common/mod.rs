@@ -187,3 +187,26 @@ pub const MODIFIERS: [KeyCode; 10] = [
     KeyCode::CapsLock,
     KeyCode::Fn,
 ];
+
+/// Copies a folder and everything in it.
+pub fn copy_dir(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap().flatten() {
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_dir(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// A temporary packs folder holding a copy of each `(id, fixture)`: the
+/// folder is named `id`, the content is `tests/fixtures/packs/<fixture>`.
+pub fn packs_folder(label: &str, packs: &[(&str, &str)]) -> TempDir {
+    let tmp = TempDir::new(label);
+    for (id, fixture) in packs {
+        copy_dir(&fixture_pack(fixture), &tmp.path().join(id));
+    }
+    tmp
+}

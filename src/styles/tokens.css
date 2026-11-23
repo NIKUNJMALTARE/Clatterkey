@@ -1,0 +1,78 @@
+/*
+ * Design tokens. Every colour, space, radius and type size in the UI comes
+ * from here; see docs/spec.md, section 8. Light values first, dark values
+ * when the OS asks for them.
+ */
+
+:root {
+	color-scheme: light dark;
+
+	/* Colour */
+	--color-bg: #f4f4f6;
+	--color-surface: #ffffff;
+	--color-text: #1c1c1f;
+	--color-text-muted: #5a5f69;
+	/* Dividers and card edges: decoration, not needed to find a control. */
+	--color-border: #dcdde2;
+	/* Outlines of controls: at least 3:1 against the surface and the background. */
+	--color-control-border: #6b707b;
+	--color-accent: #2563eb;
+	--color-on-accent: #ffffff;
+	--color-accent-soft: #e8effd;
+	--color-danger: #a8201a;
+	--color-danger-soft: #fdecea;
+	--color-warning: #6f4400;
+	--color-warning-soft: #fff4dc;
+	--color-focus: #2563eb;
+
+	/* Space: a 4 px scale */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+
+	/* Shape */
+	--radius-s: 4px;
+	--radius-m: 8px;
+	--radius-full: 999px;
+
+	/* Type */
+	--font-family:
+		system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+	--font-size-body: 13px;
+	--font-size-secondary: 12px;
+	--font-size-title: 15px;
+	--font-weight-normal: 400;
+	--font-weight-strong: 600;
+	--line-height: 1.4;
+
+	/* Motion */
+	--motion-fast: 120ms;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-bg: #1b1b1e;
+		--color-surface: #27272b;
+		--color-text: #f1f1f3;
+		--color-text-muted: #b1b4bc;
+		--color-border: #3c3c42;
+		--color-control-border: #8f939d;
+		--color-accent: #60a5fa;
+		--color-on-accent: #0b1424;
+		--color-accent-soft: #1f3050;
+		--color-danger: #ffb3aa;
+		--color-danger-soft: #45221f;
+		--color-warning: #ffd68a;
+		--color-warning-soft: #3d3013;
+		--color-focus: #93c5fd;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--motion-fast: 0ms;
+	}
+}

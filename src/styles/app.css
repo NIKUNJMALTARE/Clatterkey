@@ -1,0 +1,346 @@
+/* The settings window. Values come from tokens.css. */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--color-bg);
+	color: var(--color-text);
+	font-family: var(--font-family);
+	font-size: var(--font-size-body);
+	font-weight: var(--font-weight-normal);
+	line-height: var(--line-height);
+	/* A settings window, not a document: text is not selected by dragging. */
+	user-select: none;
+	-webkit-user-select: none;
+	cursor: default;
+}
+
+p,
+h1,
+h2 {
+	margin: 0;
+}
+
+:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+/* One column filling the window. Only the pack list scrolls. */
+.window {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	height: 100%;
+	min-width: 0;
+	/* In a window dragged wide the column stays a readable width. */
+	max-width: 560px;
+	margin: 0 auto;
+	padding: var(--space-4);
+}
+
+.title,
+.section-title {
+	font-size: var(--font-size-title);
+	font-weight: var(--font-weight-strong);
+}
+
+.card {
+	flex: none;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-m);
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: 44px;
+	padding: var(--space-2) var(--space-4);
+}
+
+.row + .row {
+	border-top: 1px solid var(--color-border);
+}
+
+.row-title {
+	flex: none;
+	font-weight: var(--font-weight-strong);
+}
+
+/* The switch: a native checkbox drawn as a track and a thumb. */
+.switch {
+	appearance: none;
+	-webkit-appearance: none;
+	flex: none;
+	position: relative;
+	width: 38px;
+	height: 22px;
+	margin: 0 0 0 auto;
+	background: var(--color-surface);
+	border: 1.5px solid var(--color-control-border);
+	border-radius: var(--radius-full);
+	cursor: pointer;
+	transition:
+		background-color var(--motion-fast),
+		border-color var(--motion-fast);
+}
+
+.switch::before {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 15px;
+	height: 15px;
+	background: var(--color-control-border);
+	border-radius: var(--radius-full);
+	transition:
+		transform var(--motion-fast),
+		background-color var(--motion-fast);
+}
+
+.switch:checked {
+	background: var(--color-accent);
+	border-color: var(--color-accent);
+}
+
+.switch:checked::before {
+	background: var(--color-on-accent);
+	transform: translateX(16px);
+}
+
+/*
+ * The slider: a native range input with its track and thumb drawn here, so
+ * the empty part of the track is as easy to see as the filled part in both
+ * themes. `--fill` is the value as a percentage, set by the component.
+ */
+.slider {
+	appearance: none;
+	-webkit-appearance: none;
+	flex: 1;
+	min-width: 0;
+	height: 22px;
+	margin: 0;
+	background: transparent;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+	height: 4px;
+	background: linear-gradient(
+		to right,
+		var(--color-accent) var(--fill, 0%),
+		var(--color-control-border) var(--fill, 0%)
+	);
+	border-radius: var(--radius-full);
+}
+
+.slider::-webkit-slider-thumb {
+	appearance: none;
+	-webkit-appearance: none;
+	width: 16px;
+	height: 16px;
+	/* Centred on the 4 px track. */
+	margin-top: -6px;
+	background: var(--color-accent);
+	border: 2px solid var(--color-surface);
+	border-radius: var(--radius-full);
+}
+
+.slider-value {
+	flex: none;
+	width: 4ch;
+	text-align: right;
+	color: var(--color-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+/* The pack list takes the rest of the window and scrolls inside it. */
+.packs {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--space-2);
+	min-height: 0;
+}
+
+.pack-list {
+	flex: 0 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-m);
+}
+
+.pack {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: 52px;
+	padding: var(--space-2) var(--space-4);
+	cursor: pointer;
+	transition: background-color var(--motion-fast);
+}
+
+.pack + .pack {
+	border-top: 1px solid var(--color-border);
+}
+
+.pack:has(input:checked) {
+	background: var(--color-accent-soft);
+}
+
+/* The ring goes round the whole row, inside the list's clipped edge. */
+/*
+ * WebKit drops `:focus-visible` from a radio reached with the arrow keys,
+ * so the second selector shows the ring for any focus while the keyboard
+ * is in use; `main.tsx` keeps `data-keyboard` up to date.
+ */
+.pack:has(input:focus-visible),
+:root[data-keyboard] .pack:has(input:focus) {
+	outline: 2px solid var(--color-focus);
+	outline-offset: -2px;
+}
+
+/* The radio is drawn here: the native one has too faint a ring in dark. */
+.pack input {
+	appearance: none;
+	-webkit-appearance: none;
+	flex: none;
+	width: 16px;
+	height: 16px;
+	margin: 0;
+	background: var(--color-surface);
+	border: 1.5px solid var(--color-control-border);
+	border-radius: var(--radius-full);
+	cursor: pointer;
+	transition: border-color var(--motion-fast);
+}
+
+.pack input:checked {
+	/* A dot of the accent inside a ring of it. */
+	background: radial-gradient(
+		circle,
+		var(--color-accent) 0 4px,
+		var(--color-surface) 4.5px
+	);
+	border-color: var(--color-accent);
+}
+
+.pack input:focus-visible {
+	outline: none;
+}
+
+.pack-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.pack-name {
+	font-weight: var(--font-weight-strong);
+}
+
+.pack-credit {
+	color: var(--color-text-muted);
+	font-size: var(--font-size-secondary);
+	overflow-wrap: anywhere;
+}
+
+.packs-empty {
+	padding: var(--space-4);
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-m);
+	color: var(--color-text-muted);
+}
+
+/* Notices: a strip at the top, never a dialog. */
+.notices {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	gap: var(--space-2);
+	/* Many long notices in a small window scroll here, not the page. */
+	max-height: 40%;
+	overflow-y: auto;
+}
+
+.notice {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-3);
+	border: 1px solid currentcolor;
+	border-radius: var(--radius-m);
+	font-size: var(--font-size-secondary);
+}
+
+.notice p {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.notice-warning {
+	background: var(--color-warning-soft);
+	color: var(--color-warning);
+}
+
+.notice-error {
+	background: var(--color-danger-soft);
+	color: var(--color-danger);
+}
+
+.notice-dismiss {
+	flex: none;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	background: none;
+	border: 0;
+	border-radius: var(--radius-s);
+	color: inherit;
+	font: inherit;
+	font-size: var(--font-size-title);
+	line-height: 1;
+	cursor: pointer;
+}
+
+/* The first read failed. */
+.load-error {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--space-3);
+}
+
+.button {
+	min-height: 28px;
+	padding: var(--space-1) var(--space-4);
+	background: var(--color-accent);
+	border: 0;
+	border-radius: var(--radius-s);
+	color: var(--color-on-accent);
+	font: inherit;
+	font-weight: var(--font-weight-strong);
+	cursor: pointer;
+}

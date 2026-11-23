@@ -123,3 +123,43 @@ fn ac8_the_requested_buffer_is_at_most_10_ms() {
         );
     }
 }
+
+#[test]
+fn feature_06_ac18_the_mixer_source_yields_the_samples_times_the_gain() {
+    let (sink, mut source) = mono_mixer(RATE);
+    let click = ramp(50);
+    sink.play(&click.with_gain(0.25));
+    let out: Vec<f32> = source.by_ref().collect();
+    assert_eq!(out.len(), 50);
+    for (o, s) in out.iter().zip(click.samples()) {
+        assert!(approx(*o, s * 0.25), "{o} vs {}", s * 0.25);
+    }
+}
+
+#[test]
+fn feature_06_ac18_gain_zero_is_silent_and_gain_one_is_unchanged() {
+    let (sink, mut source) = mono_mixer(RATE);
+    let click = ramp(20);
+    sink.play(&click.with_gain(0.0));
+    let silent: Vec<f32> = source.by_ref().collect();
+    assert_eq!(silent.len(), 20);
+    assert!(silent.iter().all(|v| *v == 0.0));
+
+    sink.play(&click.with_gain(1.0));
+    let full: Vec<f32> = source.by_ref().collect();
+    assert_eq!(full, click.samples());
+}
+
+#[test]
+fn feature_06_ac18_overlapping_sounds_each_keep_their_own_gain() {
+    let (sink, mut source) = mono_mixer(RATE);
+    let click = ramp(40);
+    sink.play(&click.with_gain(1.0));
+    let mut out = pull(&mut source, 10);
+    sink.play(&click.with_gain(0.0));
+    out.extend(source.by_ref());
+    // The first sound is not changed by the second one's gain.
+    for (i, v) in out.iter().take(40).enumerate() {
+        assert!(approx(*v, click.samples()[i]), "frame {i}");
+    }
+}

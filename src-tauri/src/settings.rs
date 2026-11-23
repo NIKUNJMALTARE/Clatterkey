@@ -17,9 +17,8 @@ use crate::{ErrorOut, write_line};
 /// The pack played when the settings name none that can be loaded.
 pub const DEFAULT_PACK: &str = "brown";
 
-/// Every setting. Only `pack_id` changes what is heard so far; the others
-/// are read and kept for the settings window, sound tuning and launch at
-/// login.
+/// Every setting. `enabled`, `pack_id` and `volume` change what is heard;
+/// the others are read and kept for sound tuning and launch at login.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     pub enabled: bool,
@@ -157,6 +156,24 @@ fn from_map(map: &Map<String, Value>) -> ReadSettings {
     }
 }
 
+/// The six fields as a JSON object, as the settings window receives them.
+pub fn to_value(settings: &Settings) -> Value {
+    let mut map = Map::new();
+    map.insert("enabled".into(), Value::Bool(settings.enabled));
+    map.insert("pack_id".into(), Value::String(settings.pack_id.clone()));
+    map.insert("volume".into(), json_number(settings.volume));
+    map.insert(
+        "pitch_variation".into(),
+        json_number(settings.pitch_variation),
+    );
+    map.insert("key_up_sounds".into(), Value::Bool(settings.key_up_sounds));
+    map.insert(
+        "launch_at_login".into(),
+        Value::Bool(settings.launch_at_login),
+    );
+    Value::Object(map)
+}
+
 /// The file's text: the six fields, in schema order.
 fn to_json(settings: &Settings) -> String {
     let field = |v: Value| v.to_string();
@@ -203,13 +220,40 @@ fn temp_path(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
+/// What was wrong with the settings file at start-up, for the settings
+/// window to show.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoadProblem {
+    /// Unreadable, not valid JSON, or not a JSON object: every default is in
+    /// use and the file was left as it is.
+    Unreadable,
+    /// These fields took their defaults, in the file's schema order.
+    Replaced(Vec<&'static str>),
+}
+
+/// The settings to start with, and what was wrong with the file, if
+/// anything.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Loaded {
+    pub settings: Settings,
+    pub problem: Option<LoadProblem>,
+}
+
 /// The settings to start with. A missing file is created with every default.
 /// Any problem is written to `err` as one `settings:` line and the defaults
 /// stand in; an existing file is never rewritten here.
 pub fn load_or_create(path: &Path, err: &ErrorOut) -> Settings {
+    load_or_create_report(path, err).settings
+}
+
+/// As `load_or_create`, also returning what was wrong with the file. A
+/// missing file that is created is not a problem.
+pub fn load_or_create_report(path: &Path, err: &ErrorOut) -> Loaded {
     match read(path) {
         Ok(read) => {
-            if !read.replaced.is_empty() {
+            let problem = if read.replaced.is_empty() {
+                None
+            } else {
                 write_line(
                     err,
                     &format!(
@@ -217,8 +261,12 @@ pub fn load_or_create(path: &Path, err: &ErrorOut) -> Settings {
                         read.replaced.join(", ")
                     ),
                 );
+                Some(LoadProblem::Replaced(read.replaced))
+            };
+            Loaded {
+                settings: read.settings,
+                problem,
             }
-            read.settings
         }
         Err(ReadError::NotFound) => {
             let settings = Settings::default();
@@ -228,14 +276,20 @@ pub fn load_or_create(path: &Path, err: &ErrorOut) -> Settings {
                     &format!("settings: could not save {}: {e}", path.display()),
                 );
             }
-            settings
+            Loaded {
+                settings,
+                problem: None,
+            }
         }
         Err(ReadError::Invalid(why)) => {
             write_line(
                 err,
                 &format!("settings: {}: {why}; using defaults", path.display()),
             );
-            Settings::default()
+            Loaded {
+                settings: Settings::default(),
+                problem: Some(LoadProblem::Unreadable),
+            }
         }
     }
 }

@@ -2,7 +2,7 @@
 
 A small desktop app for macOS and Windows that plays the sound of a mechanical keyboard every time you press a key, in any app. Everything is local; there are no accounts.
 
-The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs: blue, brown and red switches, and a typewriter. The pack is chosen in a settings file (see below). Closing the window quits it.
+The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs: blue, brown and red switches, and a typewriter. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved. Closing the window quits the app.
 
 On macOS the app can only hear key presses once it has the Accessibility / Input Monitoring permission in System Settings, Privacy & Security. Without it the app runs and is silent. It notices only that a key went down: it never records, stores or sends which key it was.
 
@@ -25,9 +25,9 @@ You need Node 22 or later and Rust 1.96 (installed by `rustup` from `rust-toolch
 
 When you start the app with `npm run tauri dev` on macOS, it is the terminal you run it from that needs the permission above, as for `npm run keys`.
 
-### Choosing a sound pack
+### Settings
 
-Until the settings window exists, edit `settings.json` and restart the app. It is created with the defaults on first run:
+The settings window has a Sound switch, a volume slider and the list of sound packs. There is no Save button: a change applies at once and is written to `settings.json`, which is created with the defaults on first run:
 
 - macOS: `~/Library/Application Support/com.mechanicalkeysounds.app/settings.json`
 - Windows: `%APPDATA%\com.mechanicalkeysounds.app\settings.json`
@@ -43,7 +43,11 @@ Until the settings window exists, edit `settings.json` and restart the app. It i
 }
 ```
 
-`pack_id` is one of `blue`, `brown`, `red` or `typewriter`. Only `pack_id` has an effect so far. An unknown pack plays `brown` and prints one line starting `sound pack:`; a broken settings file is left as it is, the defaults are used, and one line starting `settings:` says why.
+`pack_id` is one of `blue`, `brown`, `red` or `typewriter`. `enabled`, `pack_id` and `volume` have an effect so far; the others are kept for later features. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
+
+An unknown pack plays `brown`, and a broken settings file is left as it is with the defaults in use. Either way the window shows a notice, and one line starting `sound pack:` or `settings:` is printed. A broken file is replaced the first time a setting is changed in the window.
+
+To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error` or `no-packs` to see that state.
 
 ### The bundled packs
 

@@ -6,7 +6,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::audio::{Player, Sink, SoundSet, builtin_click};
+use crate::audio::{Live, Player, Sink, SoundSet, builtin_click};
 use crate::keys::{KeyEvent, KeyListenError};
 use crate::packs;
 use crate::settings::DEFAULT_PACK;
@@ -56,12 +56,33 @@ pub fn is_pack_id(id: &str) -> bool {
 /// `sound pack:` line to `err` saying why, so at most two lines are written.
 /// `packs` is `None` when the bundled packs folder could not be found.
 pub fn choose_sounds(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> SoundSet {
+    choose_pack(packs, pack_id, err).sounds
+}
+
+/// The sounds chosen at start-up and how the choice went.
+#[derive(Debug)]
+pub struct Chosen {
+    pub sounds: SoundSet,
+    /// The id of the pack that is playing; `None` for the built-in click.
+    pub playing: Option<String>,
+    /// Whether the pack asked for could not be used.
+    pub fell_back: bool,
+}
+
+/// As `choose_sounds`, also saying which pack is playing and whether that
+/// is a fallback, for the settings window.
+pub fn choose_pack(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> Chosen {
+    let chosen = |sounds, playing: &str, fell_back| Chosen {
+        sounds,
+        playing: Some(playing.to_string()),
+        fell_back,
+    };
     let fallback = format!("using {DEFAULT_PACK:?}");
     if pack_id != DEFAULT_PACK {
         match packs {
             Some(dir) if is_pack_id(pack_id) && names_a_pack(dir, pack_id) => {
                 match load_pack(&dir.join(pack_id)) {
-                    Ok(sounds) => return sounds,
+                    Ok(sounds) => return chosen(sounds, pack_id, false),
                     Err(reason) => write_line(err, &format!("sound pack: {reason}; {fallback}")),
                 }
             }
@@ -76,7 +97,7 @@ pub fn choose_sounds(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> Sou
     }
     let reason = match packs {
         Some(dir) => match load_pack(&dir.join(DEFAULT_PACK)) {
-            Ok(sounds) => return sounds,
+            Ok(sounds) => return chosen(sounds, DEFAULT_PACK, pack_id != DEFAULT_PACK),
             Err(reason) => reason,
         },
         None => "the bundled packs folder was not found".to_string(),
@@ -85,13 +106,17 @@ pub fn choose_sounds(packs: Option<&Path>, pack_id: &str, err: &ErrorOut) -> Sou
         err,
         &format!("sound pack: {reason}; using the built-in click"),
     );
-    SoundSet::single(builtin_click())
+    Chosen {
+        sounds: SoundSet::single(builtin_click()),
+        playing: None,
+        fell_back: true,
+    }
 }
 
 /// Whether `id` is exactly the name of a folder in `packs`. Matching on
 /// the listed names, not by opening the path, keeps ids case-sensitive on
 /// macOS and Windows too, so `"Brown"` is unknown everywhere.
-fn names_a_pack(packs: &Path, id: &str) -> bool {
+pub(crate) fn names_a_pack(packs: &Path, id: &str) -> bool {
     std::fs::read_dir(packs).is_ok_and(|entries| {
         entries
             .flatten()
@@ -101,7 +126,7 @@ fn names_a_pack(packs: &Path, id: &str) -> bool {
 
 /// Loads a pack folder. A decoder that panics on a malformed file must not
 /// take the app's sound with it: that is treated as an invalid pack.
-fn load_pack(dir: &Path) -> Result<SoundSet, String> {
+pub(crate) fn load_pack(dir: &Path) -> Result<SoundSet, String> {
     match catch_unwind(AssertUnwindSafe(|| packs::load(dir))) {
         Ok(Ok(pack)) => Ok(pack.sounds),
         Ok(Err(error)) => Err(error.to_string()),
@@ -131,7 +156,18 @@ pub fn run_sounds(
     sounds: SoundSet,
     err: ErrorOut,
 ) {
-    let player = Player::with_sounds(sink, sounds);
+    run_live(start, sink, Arc::new(Live::new(sounds)), err);
+}
+
+/// As `run_sounds`, playing as `live` says: the settings can turn the sound
+/// off, change the volume and swap the sound set while the listener runs.
+pub fn run_live(
+    start: impl FnOnce(Consumer) -> Result<Wait, KeyListenError>,
+    sink: Arc<dyn Sink>,
+    live: Arc<Live>,
+    err: ErrorOut,
+) {
+    let player = Player::with_live(sink, live);
     let consumer = Box::new(key_consumer(player, Arc::clone(&err)));
 
     if let Err(error) = start(consumer).and_then(|wait| wait()) {

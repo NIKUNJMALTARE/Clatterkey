@@ -50,7 +50,8 @@ impl Sink for MixerSink {
     }
 }
 
-/// Reads a `Sample`'s shared buffer for the mixer, without copying it.
+/// Reads a `Sample`'s shared buffer for the mixer, without copying it,
+/// applying the sample's gain as it goes.
 struct SampleSource {
     sample: Sample,
     position: usize,
@@ -62,7 +63,7 @@ impl Iterator for SampleSource {
     fn next(&mut self) -> Option<Self::Item> {
         let value = self.sample.samples().get(self.position).copied()?;
         self.position += 1;
-        Some(value)
+        Some(value * self.sample.gain())
     }
 }
 

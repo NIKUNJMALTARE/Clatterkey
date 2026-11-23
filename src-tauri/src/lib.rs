@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod commands;
 pub mod keys;
 pub mod packs;
 pub mod settings;
@@ -10,6 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 use tauri::path::BaseDirectory;
+
+use commands::CoreGate;
 
 /// Where errors are reported: standard error in the app.
 pub type ErrorOut = Arc<Mutex<dyn Write + Send>>;
@@ -39,9 +42,19 @@ pub fn run() {
                 .app_config_dir()
                 .ok()
                 .map(|dir| dir.join("settings.json"));
-            app.manage(start_clicks(packs, settings_path));
+            // The window's commands wait at this gate until start-up has
+            // read the settings and chosen the pack.
+            let gate = Arc::new(CoreGate::new());
+            app.manage(Arc::clone(&gate));
+            app.manage(start_clicks(packs, settings_path, gate));
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::list_packs,
+            commands::get_settings,
+            commands::set_settings,
+            commands::audio_status,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -51,42 +64,55 @@ pub fn run() {
 /// from starting: with no output or no listener it runs without sound.
 ///
 /// The pack comes from `pack_id` in the settings file, which is created
-/// with defaults if missing; see `settings::load_or_create` and
-/// `startup::choose_sounds` for the fallbacks.
-fn start_clicks(packs: Option<PathBuf>, settings_path: Option<PathBuf>) -> audio::OutputHandle {
+/// with defaults if missing; see `settings::load_or_create_report` and
+/// `startup::choose_pack` for the fallbacks. Once both are done the `Core`
+/// is published to `gate` for the settings window, and only then does the
+/// listener start.
+fn start_clicks(
+    packs: Option<PathBuf>,
+    settings_path: Option<PathBuf>,
+    gate: Arc<CoreGate>,
+) -> audio::OutputHandle {
     let slot = Arc::new(audio::SinkSlot::new());
     let output = audio::spawn_output(Arc::clone(&slot));
 
     // Starting the listener can block briefly, and waiting on it blocks for
     // the life of the process. If the thread cannot be made, there are no
     // clicks.
-    let _ = std::thread::Builder::new()
-        .name("startup".into())
-        .spawn(move || {
-            let err: ErrorOut = Arc::new(Mutex::new(std::io::stderr()));
-            // The pack is loaded before the listener starts, so no key plays
-            // from a half-loaded pack.
-            let settings = match &settings_path {
-                Some(path) => settings::load_or_create(path, &err),
-                None => {
-                    write_line(
-                        &err,
-                        "settings: the app config folder was not found; using defaults",
-                    );
-                    settings::Settings::default()
-                }
-            };
-            let sounds = startup::choose_sounds(packs.as_deref(), &settings.pack_id, &err);
-            startup::run_sounds(
-                |consumer| {
-                    let listener = keys::start(consumer)?;
-                    Ok(Box::new(move || listener.wait()) as startup::Wait)
-                },
-                slot,
-                sounds,
-                err,
-            );
-        });
+    let spawned = {
+        let (gate, output) = (Arc::clone(&gate), output.clone());
+        std::thread::Builder::new()
+            .name("startup".into())
+            .spawn(move || {
+                let err: ErrorOut = Arc::new(Mutex::new(std::io::stderr()));
+                // The pack is loaded before the listener starts, so no key
+                // plays from a half-loaded pack.
+                let live = commands::publish_core(
+                    &gate,
+                    || status_of(&output),
+                    &err,
+                    |audio| commands::start_core(packs, settings_path, audio, &err),
+                );
+                startup::run_live(
+                    |consumer| {
+                        let listener = keys::start(consumer)?;
+                        Ok(Box::new(move || listener.wait()) as startup::Wait)
+                    },
+                    slot,
+                    live,
+                    err,
+                );
+            })
+    };
+    if spawned.is_err() {
+        // No clicks, but the window must still open with its controls.
+        gate.publish(Arc::new(commands::plain_core(status_of(&output)).0));
+    }
 
     output
+}
+
+fn status_of(output: &audio::OutputHandle) -> commands::AudioStatus {
+    let output = output.clone();
+    Box::new(move || output.status())
 }

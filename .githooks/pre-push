@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Refuses a push when the project's checks fail.
+root=$(git rev-parse --show-toplevel)
+[ -x "$root/scripts/check.sh" ] || exit 0
+
+echo "pre-push: running scripts/check.sh"
+if ! "$root/scripts/check.sh"; then
+  echo "pre-push: checks failed, push refused." >&2
+  exit 1
+fi

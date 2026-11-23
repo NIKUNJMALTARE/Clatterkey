@@ -35,6 +35,8 @@ export interface SettingsState {
 	playing_pack: string | null;
 	startup: StartupProblems;
 	audio: AudioStatus;
+	/** How many changes the core has applied; see `SetResult.revision`. */
+	revision: number;
 }
 
 /** The fields this window can change. */
@@ -48,7 +50,15 @@ export interface SetResult {
 	/** False when the change is in force but could not be written. */
 	saved: boolean;
 	save_error: string | null;
+	/**
+	 * Rises by one with every change the core applies. A reply and an event
+	 * can arrive in either order; the one with the lower revision is old.
+	 */
+	revision: number;
 }
+
+/** Stops a subscription. */
+export type Unsubscribe = () => void;
 
 /** The core, as the window sees it. A rejection carries a string. */
 export interface CoreApi {
@@ -56,4 +66,11 @@ export interface CoreApi {
 	getSettings(): Promise<SettingsState>;
 	setSettings(patch: SettingsPatch): Promise<SetResult>;
 	audioStatus(): Promise<AudioStatus>;
+	/**
+	 * Calls `listener` with the result of every change the core applies,
+	 * whoever asked for it: this window or the tray.
+	 */
+	onSettingsChanged(
+		listener: (result: SetResult) => void,
+	): Promise<Unsubscribe>;
 }

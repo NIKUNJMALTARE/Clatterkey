@@ -5,6 +5,7 @@ import * as api from "./api";
 import type {
 	AudioStatus,
 	PackInfo,
+	SetResult,
 	Settings,
 	SettingsPatch,
 	StartupProblems,
@@ -86,6 +87,14 @@ export function useSettings(): SettingsView {
 	const [changeError, setChangeError] = useState<string | null>(null);
 
 	const alive = useRef(true);
+	// The revision of what `confirmed` holds. Replies, events from the core
+	// and re-reads can arrive in any order; an older one is dropped.
+	const revision = useRef(0);
+	// Whether the first read has arrived, the listening that the read waits
+	// for, and a change that came in before the read did.
+	const loaded = useRef(false);
+	const subscribed = useRef<Promise<void> | null>(null);
+	const waiting = useRef<SetResult | null>(null);
 	const packsRef = useRef<PackInfo[]>([]);
 	// Changes not yet sent, one per field, oldest first. They go to the core
 	// one at a time, so its answers arrive in the order of the requests.
@@ -101,12 +110,92 @@ export function useSettings(): SettingsView {
 		};
 	}, []);
 
+	/**
+	 * Takes what the core says is in force, unless something newer has
+	 * already been taken. Returns whether it was taken.
+	 */
+	const confirm = useCallback(
+		(result: Pick<SetResult, "settings" | "playing_pack" | "revision">) => {
+			if (!alive.current || !result?.settings) {
+				return false;
+			}
+			const at = result.revision ?? revision.current;
+			if (at < revision.current) {
+				return false;
+			}
+			revision.current = at;
+			setConfirmed({
+				settings: result.settings,
+				playing: result.playing_pack,
+			});
+			return true;
+		},
+		[],
+	);
+
+	/** A change the core applied, asked for by this window or by the tray. */
+	const confirmChange = useCallback(
+		(result: SetResult) => {
+			if (confirm(result)) {
+				setSaveError(
+					result.saved ? null : (result.save_error ?? "unknown error"),
+				);
+			}
+		},
+		[confirm],
+	);
+
+	// Changes made outside the window (the tray) reach it as events. They
+	// are only shown: nothing is sent back to the core. This effect comes
+	// before the first read so that the read can wait for it.
+	useEffect(() => {
+		let stopped = false;
+		let unsubscribe: (() => void) | undefined;
+		const listener = (result: SetResult) => {
+			if (loaded.current) {
+				confirmChange(result);
+			} else if (
+				!waiting.current ||
+				(result?.revision ?? 0) >= (waiting.current.revision ?? 0)
+			) {
+				// Kept until the first read has arrived.
+				waiting.current = result;
+			}
+		};
+		// A failed subscription is ignored: the window works without it.
+		const done = Promise.resolve()
+			.then(() => api.onSettingsChanged(listener))
+			.then((stop) => {
+				if (typeof stop !== "function") {
+					return;
+				}
+				if (stopped) {
+					stop();
+				} else {
+					unsubscribe = stop;
+				}
+			})
+			.catch(() => {});
+		subscribed.current = done;
+		return () => {
+			stopped = true;
+			unsubscribe?.();
+			if (subscribed.current === done) {
+				subscribed.current = null;
+			}
+		};
+	}, [confirmChange]);
+
 	// The first read, and each retry.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the trigger for a retry.
 	useEffect(() => {
 		let current = true;
 		setPhase("loading");
-		Promise.all([api.getSettings(), api.listPacks()])
+		loaded.current = false;
+		// Listening starts before the read, so a change the core applies
+		// after the read is not missed; one applied before it is in the read.
+		(subscribed.current ?? Promise.resolve())
+			.then(() => Promise.all([api.getSettings(), api.listPacks()]))
 			.then(([state, list]) => {
 				if (!current) {
 					return;
@@ -117,6 +206,7 @@ export function useSettings(): SettingsView {
 				}
 				packsRef.current = list;
 				setPacks(list);
+				revision.current = state.revision ?? 0;
 				setConfirmed({ settings: state.settings, playing: state.playing_pack });
 				setStartup(state.startup);
 				setFallbackName(
@@ -125,6 +215,19 @@ export function useSettings(): SettingsView {
 				);
 				setAudio(state.audio);
 				setPhase("ready");
+				loaded.current = true;
+				// A change that arrived during the read; dropped if the read
+				// already had it.
+				const early = waiting.current;
+				waiting.current = null;
+				const at = early?.revision ?? 0;
+				if (early && at > revision.current) {
+					confirmChange(early);
+				} else if (early && at === revision.current && !early.saved) {
+					// The read already has this change, but only the event
+					// says that saving it failed.
+					setSaveError(early.save_error ?? "unknown error");
+				}
 			})
 			.catch(() => {
 				if (current) {
@@ -154,6 +257,32 @@ export function useSettings(): SettingsView {
 		return () => clearInterval(timer);
 	}, [phase]);
 
+	// A hidden window may miss an event, so when it is shown again or gains
+	// focus the settings are read again, quietly: no loading state, and a
+	// failure changes nothing.
+	useEffect(() => {
+		if (phase !== "ready") {
+			return;
+		}
+		const reread = () => {
+			if (document.visibilityState === "hidden") {
+				return;
+			}
+			Promise.resolve()
+				.then(() => api.getSettings())
+				.then((state) => {
+					confirm(state);
+				})
+				.catch(() => {});
+		};
+		window.addEventListener("focus", reread);
+		document.addEventListener("visibilitychange", reread);
+		return () => {
+			window.removeEventListener("focus", reread);
+			document.removeEventListener("visibilitychange", reread);
+		};
+	}, [phase, confirm]);
+
 	const send = useCallback(async () => {
 		if (sending.current) {
 			return;
@@ -171,13 +300,7 @@ export function useSettings(): SettingsView {
 					if (!alive.current) {
 						return;
 					}
-					setConfirmed({
-						settings: result.settings,
-						playing: result.playing_pack,
-					});
-					setSaveError(
-						result.saved ? null : (result.save_error ?? "unknown error"),
-					);
+					confirmChange(result);
 					if (key === "pack_id") {
 						// A pack has loaded since: an earlier failure is old news.
 						setPackError(null);
@@ -213,7 +336,7 @@ export function useSettings(): SettingsView {
 		} finally {
 			sending.current = false;
 		}
-	}, []);
+	}, [confirmChange]);
 
 	const change = useCallback(
 		(next: Change) => {

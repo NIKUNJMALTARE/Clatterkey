@@ -52,6 +52,7 @@ export function state(over: Partial<SettingsState> = {}): SettingsState {
 			unusable_pack: null,
 		},
 		audio: "playing",
+		revision: 0,
 		...over,
 	};
 }
@@ -67,6 +68,7 @@ export function result(
 		playing_pack: settings.pack_id,
 		saved: true,
 		save_error: null,
+		revision: current.revision + 1,
 		...extra,
 	};
 }
@@ -74,6 +76,13 @@ export function result(
 /** Resolves each call like a healthy core, keeping its own copy of the state. */
 export function healthyCore(initial: SettingsState = state(), packs = PACKS) {
 	let current = initial;
+	const listeners = new Set<(r: SetResult) => void>();
+	vi.mocked(api.onSettingsChanged).mockImplementation(async (listener) => {
+		listeners.add(listener);
+		return () => {
+			listeners.delete(listener);
+		};
+	});
 	vi.mocked(api.getSettings).mockImplementation(async () => current);
 	vi.mocked(api.listPacks).mockImplementation(async () => packs);
 	vi.mocked(api.audioStatus).mockImplementation(
@@ -85,12 +94,41 @@ export function healthyCore(initial: SettingsState = state(), packs = PACKS) {
 			...current,
 			settings: r.settings,
 			playing_pack: r.playing_pack,
+			revision: r.revision,
 		};
 		return r;
 	});
 	return {
 		setAudio(audio: AudioStatus) {
 			current = { ...current, audio };
+		},
+		/** How many listeners are subscribed through `onSettingsChanged`. */
+		listenerCount: () => listeners.size,
+		/**
+		 * The core changing the settings outside the window, as the tray does:
+		 * it takes the next revision, and every subscribed listener is told.
+		 */
+		outsideChange(
+			patch: Record<string, unknown>,
+			extra: Partial<SetResult> = {},
+		) {
+			const r = result(current, patch, extra);
+			current = {
+				...current,
+				settings: r.settings,
+				playing_pack: r.playing_pack,
+				revision: r.revision,
+			};
+			for (const listener of [...listeners]) {
+				listener(r);
+			}
+			return r;
+		},
+		/** Tells the listeners a result as it is, without changing the core. */
+		emit(r: SetResult) {
+			for (const listener of [...listeners]) {
+				listener(r);
+			}
 		},
 	};
 }

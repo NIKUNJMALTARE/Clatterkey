@@ -12,7 +12,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use serde_json::Value;
 use tauri::State;
 
-pub use core::{AudioStatus, Core, CoreParts};
+pub use core::{AudioStatus, Core, CoreParts, Listener};
 pub use start::{plain_core, publish_core, start_core};
 
 /// Holds the `Core` once start-up has made it. A command that arrives

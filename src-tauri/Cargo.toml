@@ -21,11 +21,20 @@ name = "make-packs"
 path = "examples/make_packs/main.rs"
 test = true
 
+# Generates the tray icons: `npm run make-tray-icons`. Not part of the app.
+[[example]]
+name = "make-tray-icons"
+path = "examples/make_tray_icons/main.rs"
+test = true
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = [] }
+# `tray-icon` for the tray; `image-png` to read its icons.
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+# A second launch shows the running app's window instead of starting again.
+tauri-plugin-single-instance = "2.5"
 # Audio output and mixer, and decoders for the formats a sound pack may use.
 rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "vorbis", "mp3", "flac"] }
 # Reads `pack.json`.

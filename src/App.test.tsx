@@ -18,6 +18,7 @@ vi.mock("./api", () => ({
 	getSettings: vi.fn(),
 	setSettings: vi.fn(),
 	audioStatus: vi.fn(),
+	onSettingsChanged: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);

@@ -1,6 +1,7 @@
 //! The settings as the window sees and changes them. No Tauri here, so it
 //! is tested directly.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -13,6 +14,12 @@ use crate::startup::{is_pack_id, load_pack, names_a_pack};
 
 /// Reads the audio output's status now.
 pub type AudioStatus = Box<dyn Fn() -> OutputStatus + Send + Sync>;
+
+/// Told of every applied change, with the `set_settings` result. Listeners
+/// run under the settings lock, in subscription order, so they see results
+/// in revision order. They must return quickly and must not call back into
+/// `Core`.
+pub type Listener = Box<dyn Fn(&Value) + Send + Sync>;
 
 /// What start-up hands over to the controller.
 pub struct CoreParts {
@@ -37,6 +44,9 @@ pub struct CoreParts {
 struct State {
     settings: Settings,
     playing: Option<String>,
+    /// How many changes have been applied. It orders the results the
+    /// window receives from command replies and from events.
+    revision: u64,
 }
 
 /// Lists packs, reports the settings, and applies changes to them.
@@ -48,6 +58,8 @@ pub struct Core {
     /// The start-up problems, as `get_settings` reports them.
     startup: Value,
     state: Mutex<State>,
+    /// Locked only while `state` is held, so it adds no lock order.
+    listeners: Mutex<Vec<Listener>>,
 }
 
 /// A checked change: only the fields the patch named.
@@ -82,7 +94,9 @@ impl Core {
             state: Mutex::new(State {
                 settings,
                 playing: parts.playing,
+                revision: 0,
             }),
+            listeners: Mutex::new(Vec::new()),
         }
     }
 
@@ -134,6 +148,7 @@ impl Core {
             "playing_pack": state.playing,
             "startup": self.startup,
             "audio": self.audio_status(),
+            "revision": state.revision,
         })
     }
 
@@ -154,7 +169,37 @@ impl Core {
     pub fn set_settings(&self, patch: &Value) -> Result<Value, String> {
         let mut state = self.state();
         let patch = self.check(patch)?;
+        self.apply(&mut state, patch)
+    }
 
+    /// Turns the sound off if it is on and on if it is off, by the same
+    /// path as `set_settings`, and returns the same result. The read and
+    /// the change are one step, so two toggles never read the same value.
+    pub fn toggle_enabled(&self) -> Value {
+        let mut state = self.state();
+        let patch = Patch {
+            enabled: Some(!state.settings.enabled),
+            ..Patch::default()
+        };
+        // Only a pack change can be refused.
+        self.apply(&mut state, patch)
+            .unwrap_or_else(|_| result_of(&state, None))
+    }
+
+    /// Adds a listener for applied changes, and calls it once now with the
+    /// settings in force, so it starts in step.
+    pub fn subscribe(&self, listener: Listener) {
+        let state = self.state();
+        call(&listener, &result_of(&state, None));
+        self.listeners().push(listener);
+    }
+
+    fn listeners(&self) -> MutexGuard<'_, Vec<Listener>> {
+        self.listeners.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Applies a checked patch, saves, and tells the listeners.
+    fn apply(&self, state: &mut State, patch: Patch) -> Result<Value, String> {
         // The old pack plays until the new one is loaded whole.
         let mut new_sounds: Option<SoundSet> = None;
         if let Some(id) = &patch.pack_id
@@ -186,12 +231,12 @@ impl Core {
                 .map(|e| e.to_string()),
             None => Some("the app config folder was not found".to_string()),
         };
-        Ok(json!({
-            "settings": settings::to_value(&state.settings),
-            "playing_pack": state.playing,
-            "saved": save_error.is_none(),
-            "save_error": save_error,
-        }))
+        state.revision += 1;
+        let result = result_of(state, save_error);
+        for listener in self.listeners().iter() {
+            call(listener, &result);
+        }
+        Ok(result)
     }
 
     /// Checks every field of a patch, changing nothing.
@@ -229,6 +274,22 @@ impl Core {
             .as_deref()
             .is_some_and(|dir: &Path| is_pack_id(id) && names_a_pack(dir, id))
     }
+}
+
+/// The result of a change: the settings in force and how the save went.
+fn result_of(state: &State, save_error: Option<String>) -> Value {
+    json!({
+        "settings": settings::to_value(&state.settings),
+        "playing_pack": state.playing,
+        "saved": save_error.is_none(),
+        "save_error": save_error,
+        "revision": state.revision,
+    })
+}
+
+/// Calls a listener. One that panics must not undo or block the change.
+fn call(listener: &Listener, result: &Value) {
+    let _ = catch_unwind(AssertUnwindSafe(|| listener(result)));
 }
 
 fn unknown_pack(id: &str) -> String {

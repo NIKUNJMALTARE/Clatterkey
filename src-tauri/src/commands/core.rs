@@ -1,17 +1,19 @@
 //! The settings as the window sees and changes them. No Tauri here, so it
 //! is tested directly.
 
+use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde_json::{Map, Value, json};
 
-use crate::audio::{Live, MAX_PITCH_VARIATION, OutputStatus, SoundSet};
-use crate::packs;
+use crate::audio::{Live, MAX_PITCH_VARIATION, OutputStatus, SoundSet, builtin_click};
+use crate::packs::{self, Library, PackInfo};
 use crate::permission::Permission;
+use crate::settings::DEFAULT_PACK;
 use crate::settings::{self, LoadProblem, Loaded, Settings};
-use crate::startup::{is_pack_id, load_pack, names_a_pack};
+use crate::startup::{default_sounds, load_pack};
 
 /// Reads the audio output's status now.
 pub type AudioStatus = Box<dyn Fn() -> OutputStatus + Send + Sync>;
@@ -26,8 +28,8 @@ pub type Listener = Box<dyn Fn(&Value) + Send + Sync>;
 pub struct CoreParts {
     /// Where settings are saved; `None` if the config folder was not found.
     pub settings_path: Option<PathBuf>,
-    /// The bundled packs folder; `None` if it was not found.
-    pub packs: Option<PathBuf>,
+    /// Where the bundled and the imported packs are.
+    pub library: Library,
     /// The settings read at start-up, and what was wrong with the file.
     pub loaded: Loaded,
     /// The pack playing; `None` for the built-in click.
@@ -55,7 +57,11 @@ struct State {
 /// Lists packs, reports the settings, and applies changes to them.
 pub struct Core {
     settings_path: Option<PathBuf>,
-    packs: Option<PathBuf>,
+    library: Library,
+    /// Held for the whole of an import or a removal, so two of them never
+    /// work on the imported folder at once. Always taken before `state`,
+    /// and never by the key path.
+    library_lock: Mutex<()>,
     live: Arc<Live>,
     permission: Arc<Permission>,
     audio: AudioStatus,
@@ -105,7 +111,8 @@ impl Core {
         });
         Self {
             settings_path: parts.settings_path,
-            packs: parts.packs,
+            library: parts.library,
+            library_lock: Mutex::new(()),
             live: parts.live,
             permission: parts.permission,
             audio: parts.audio,
@@ -131,39 +138,90 @@ impl Core {
         Arc::clone(&self.live)
     }
 
-    /// Every pack in the packs folder whose `pack.json` can be read:
-    /// `[{ id, name, author, license, has_key_up }]`, sorted by name. No
-    /// audio is opened.
+    /// Every bundled and imported pack whose `pack.json` can be read:
+    /// `[{ id, name, author, license, has_key_up, imported }]`, sorted by
+    /// name. No audio is opened.
     pub fn list_packs(&self) -> Value {
-        let mut found = Vec::new();
-        if let Some(dir) = &self.packs
-            && let Ok(entries) = std::fs::read_dir(dir)
-        {
-            for entry in entries.flatten() {
-                let name = entry.file_name();
-                let Some(id) = name.to_str().filter(|id| is_pack_id(id)) else {
-                    continue;
-                };
-                if let Ok(info) = packs::read_info(&dir.join(id)) {
-                    found.push(info);
-                }
-            }
-        }
-        found.sort_by(|a, b| {
-            (a.name.to_lowercase(), &a.name, &a.id).cmp(&(b.name.to_lowercase(), &b.name, &b.id))
-        });
-        found
-            .into_iter()
-            .map(|info| {
-                json!({
-                    "id": info.id,
-                    "name": info.name,
-                    "author": info.author,
-                    "license": info.license,
-                    "has_key_up": info.has_key_up,
-                })
-            })
+        self.library
+            .list()
+            .iter()
+            .map(|listed| pack_json(&listed.info, listed.imported))
             .collect()
+    }
+
+    /// Imports the folder `source` as a pack, selects it and saves that
+    /// choice: `{ pack, replaced, packs, change }`, where `change` is what
+    /// `set_settings` would have returned. If the folder cannot be used
+    /// nothing changes, and the error is the whole notice,
+    /// `Could not import "<folder name>": <reason>`.
+    pub fn import_pack(&self, source: &Path) -> Result<Value, String> {
+        let _library = self.library_lock();
+        // Checking and copying take a while, and the settings stay free
+        // meanwhile: only putting the pack in force takes their lock.
+        let imported = packs::import(source, &self.library).map_err(|error| {
+            let folder = source
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| source.display().to_string());
+            format!("Could not import \"{folder}\": {error}")
+        })?;
+        let mut state = self.state();
+        let patch = Patch {
+            pack_id: Some(imported.info.id.clone()),
+            ..Patch::default()
+        };
+        let change = self.put_in_force(&mut state, patch, Some(imported.sounds));
+        Ok(json!({
+            "pack": pack_json(&imported.info, true),
+            "replaced": imported.replaced,
+            "packs": self.list_packs(),
+            "change": change,
+        }))
+    }
+
+    /// Deletes the app's copy of the imported pack `id`: `{ packs, change }`.
+    /// If it was playing, or was the saved pack, the default pack takes its
+    /// place (the built-in click if that cannot load) and `change` is that
+    /// change; otherwise `change` is null. A bundled pack, an unknown id
+    /// and anything that is not an id are refused before any path is built.
+    pub fn remove_pack(&self, id: &str) -> Result<Value, String> {
+        let _library = self.library_lock();
+        let mut state = self.state();
+        if self.library.is_bundled(id) {
+            return Err(format!("{id:?} is a bundled pack and cannot be removed"));
+        }
+        let found = self
+            .library
+            .find(id)
+            .filter(|found| found.imported)
+            .ok_or_else(|| unknown_pack(id))?;
+        let folder = self
+            .library
+            .imported_dir()
+            .ok_or_else(|| unknown_pack(id))?;
+
+        // Moved aside in one step, so the pack is never listed half-deleted.
+        let aside = folder.join(packs::removed_name(id));
+        packs::rename(&found.dir, &aside).map_err(|error| error.to_string())?;
+        // What cannot be deleted now is cleared at the next start-up.
+        let _ = fs::remove_dir_all(&aside);
+
+        let in_use = state.playing.as_deref() == Some(id) || state.settings.pack_id == id;
+        let change = in_use.then(|| {
+            let (sounds, playing) = match default_sounds(&self.library) {
+                Ok(sounds) => (sounds, Some(DEFAULT_PACK.to_string())),
+                Err(_) => (SoundSet::single(builtin_click()), None),
+            };
+            self.live.set_sounds(sounds);
+            state.playing = playing;
+            state.settings.pack_id = DEFAULT_PACK.to_string();
+            self.finish(&mut state)
+        });
+        Ok(json!({ "packs": self.list_packs(), "change": change }))
+    }
+
+    fn library_lock(&self) -> MutexGuard<'_, ()> {
+        self.library_lock.lock().unwrap_or_else(|p| p.into_inner())
     }
 
     /// What the window opens with: the settings, the pack actually playing,
@@ -239,10 +297,16 @@ impl Core {
         if let Some(id) = &patch.pack_id
             && state.playing.as_deref() != Some(id.as_str())
         {
-            let dir = self.packs.as_deref().ok_or_else(|| unknown_pack(id))?;
-            new_sounds = Some(load_pack(&dir.join(id))?);
+            let found = self.library.find(id).ok_or_else(|| unknown_pack(id))?;
+            new_sounds = Some(load_pack(&found.dir)?);
         }
+        Ok(self.put_in_force(state, patch, new_sounds))
+    }
 
+    /// Puts a checked patch in force, with `new_sounds` as the sounds of
+    /// its pack if it names one, then saves and tells the listeners.
+    /// Nothing here can fail.
+    fn put_in_force(&self, state: &mut State, patch: Patch, new_sounds: Option<SoundSet>) -> Value {
         if let Some(enabled) = patch.enabled {
             state.settings.enabled = enabled;
             self.live.set_enabled(enabled);
@@ -266,7 +330,12 @@ impl Core {
             state.playing = Some(id.clone());
             state.settings.pack_id = id;
         }
+        self.finish(state)
+    }
 
+    /// The end of every change: saves the settings, raises the revision and
+    /// tells the listeners. Returns the result.
+    fn finish(&self, state: &mut State) -> Value {
         let save_error = match &self.settings_path {
             Some(path) => settings::save(path, &state.settings)
                 .err()
@@ -278,7 +347,7 @@ impl Core {
         for listener in self.listeners().iter() {
             call(listener, &result);
         }
-        Ok(result)
+        result
     }
 
     /// Checks every field of a patch, changing nothing.
@@ -321,12 +390,10 @@ impl Core {
         })
     }
 
-    /// Whether `id` names a folder in the packs folder. The id is checked
-    /// before any path is built from it.
+    /// Whether `id` names a bundled or an imported pack's folder. The id is
+    /// checked before any path is built from it.
     fn lists(&self, id: &str) -> bool {
-        self.packs
-            .as_deref()
-            .is_some_and(|dir: &Path| is_pack_id(id) && names_a_pack(dir, id))
+        self.library.find(id).is_some()
     }
 }
 
@@ -344,6 +411,18 @@ fn result_of(state: &State, save_error: Option<String>) -> Value {
 /// Calls a listener. One that panics must not undo or block the change.
 fn call(listener: &Listener, result: &Value) {
     let _ = catch_unwind(AssertUnwindSafe(|| listener(result)));
+}
+
+/// A pack as the window lists it.
+fn pack_json(info: &PackInfo, imported: bool) -> Value {
+    json!({
+        "id": info.id,
+        "name": info.name,
+        "author": info.author,
+        "license": info.license,
+        "has_key_up": info.has_key_up,
+        "imported": imported,
+    })
 }
 
 fn unknown_pack(id: &str) -> String {

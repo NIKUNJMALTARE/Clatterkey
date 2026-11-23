@@ -16,6 +16,7 @@ export const PACKS: PackInfo[] = [
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
 		has_key_up: true,
+		imported: false,
 	},
 	{
 		id: "brown",
@@ -23,6 +24,7 @@ export const PACKS: PackInfo[] = [
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
 		has_key_up: true,
+		imported: false,
 	},
 	{
 		id: "red",
@@ -30,6 +32,7 @@ export const PACKS: PackInfo[] = [
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
 		has_key_up: true,
+		imported: false,
 	},
 	{
 		id: "typewriter",
@@ -37,8 +40,26 @@ export const PACKS: PackInfo[] = [
 		author: "Mechanical Key Sounds contributors",
 		license: "CC0-1.0",
 		has_key_up: false,
+		imported: false,
 	},
 ];
+
+/** An imported pack, as the core lists it. */
+export function importedPack(
+	id: string,
+	name: string,
+	over: Partial<PackInfo> = {},
+): PackInfo {
+	return {
+		id,
+		name,
+		author: null,
+		license: "Licence not stated",
+		has_key_up: true,
+		imported: true,
+		...over,
+	};
+}
 
 export function state(over: Partial<SettingsState> = {}): SettingsState {
 	return {
@@ -100,6 +121,7 @@ export function healthyCore(initial: SettingsState = state(), packs = PACKS) {
 	vi.mocked(api.openPermissionSettings).mockResolvedValue(undefined);
 	vi.mocked(api.restartApp).mockResolvedValue(undefined);
 	vi.mocked(api.preview).mockResolvedValue(undefined);
+	vi.mocked(api.importPack).mockResolvedValue(null);
 	vi.mocked(api.setSettings).mockImplementation(async (patch) => {
 		const r = result(current, patch);
 		current = {

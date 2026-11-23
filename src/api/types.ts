@@ -19,6 +19,8 @@ export interface PackInfo {
 	license: string;
 	/** Whether the pack has a sound for any key going up. */
 	has_key_up: boolean;
+	/** Whether the user imported it; false for the packs the app ships. */
+	imported: boolean;
 }
 
 /** What went wrong when the app started, if anything. */
@@ -75,6 +77,25 @@ export interface SetResult {
 	revision: number;
 }
 
+/** A pack that was imported and is now selected. */
+export interface ImportResult {
+	pack: PackInfo;
+	/** Whether an earlier imported pack with the same id was replaced. */
+	replaced: boolean;
+	/** The whole pack list after the import. */
+	packs: PackInfo[];
+	/** The change that selected the pack, as `setSettings` returns it. */
+	change: SetResult;
+}
+
+/** What is left after an imported pack was removed. */
+export interface RemoveResult {
+	/** The whole pack list after the removal. */
+	packs: PackInfo[];
+	/** The change to the default pack, if the removed one was in use. */
+	change: SetResult | null;
+}
+
 /** Stops a subscription. */
 export type Unsubscribe = () => void;
 
@@ -89,6 +110,14 @@ export interface CoreApi {
 	 * is off. Resolves once it has started; changes no setting.
 	 */
 	preview(): Promise<void>;
+	/**
+	 * Opens the system's folder picker and imports the folder chosen as a
+	 * pack, which becomes the selected one. Resolves with null if the picker
+	 * was cancelled. Rejects with the whole notice text.
+	 */
+	importPack(): Promise<ImportResult | null>;
+	/** Removes an imported pack. Rejects with the reason. */
+	removePack(id: string): Promise<RemoveResult>;
 	permissionStatus(): Promise<PermissionState>;
 	/**
 	 * Asks macOS for the permission and opens System Settings on the Input

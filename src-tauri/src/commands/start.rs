@@ -4,20 +4,22 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
+
+use crate::packs::Library;
 use std::sync::Arc;
 
 use super::{AudioStatus, Core, CoreGate, CoreParts};
 use crate::audio::{Live, SoundSet, builtin_click};
 use crate::permission::Permission;
 use crate::settings::{self, Loaded, Settings};
-use crate::startup::choose_pack;
+use crate::startup::choose_pack_in;
 use crate::{ErrorOut, write_line};
 
 /// Reads the settings (creating the file if it is missing), chooses the
 /// pack, and builds the `Core` over them. Returns it with the state the
 /// key path plays from.
 pub fn start_core(
-    packs: Option<PathBuf>,
+    library: Library,
     settings_path: Option<PathBuf>,
     audio: AudioStatus,
     permission: Arc<Permission>,
@@ -36,11 +38,13 @@ pub fn start_core(
             }
         }
     };
-    let chosen = choose_pack(packs.as_deref(), &loaded.settings.pack_id, err);
+    // What an import or a removal left half-done in an earlier run.
+    library.clean_temporary();
+    let chosen = choose_pack_in(&library, &loaded.settings.pack_id, err);
     let live = Arc::new(Live::new(chosen.sounds));
     let core = Core::new(CoreParts {
         settings_path,
-        packs,
+        library,
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
@@ -57,7 +61,7 @@ pub fn plain_core(audio: AudioStatus, permission: Arc<Permission>) -> (Core, Arc
     let live = Arc::new(Live::new(SoundSet::single(builtin_click())));
     let core = Core::new(CoreParts {
         settings_path: None,
-        packs: None,
+        library: Library::none(),
         loaded: Loaded {
             settings: Settings::default(),
             problem: None,

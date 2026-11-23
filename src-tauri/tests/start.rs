@@ -14,6 +14,7 @@ use mechanical_key_sounds_lib::commands::{
     AudioStatus, Core, CoreGate, plain_core, publish_core, start_core,
 };
 use mechanical_key_sounds_lib::keys::KeyCode;
+use mechanical_key_sounds_lib::packs::Library;
 use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
 use serde_json::json;
 
@@ -107,7 +108,7 @@ fn start_core_reads_the_file_and_plays_the_chosen_pack() {
     fs::write(&path, file("full")).unwrap();
     let (_, err) = fake_err();
     let (core, live) = start_core(
-        Some(packs.path().to_path_buf()),
+        Library::bundled_only(packs.path().to_path_buf()),
         Some(path),
         playing(),
         perm(),
@@ -124,7 +125,7 @@ fn start_core_with_no_settings_path_uses_defaults_and_says_so() {
     let packs = packs_folder("start-packs", &[("brown", "full")]);
     let (buffer, err) = fake_err();
     let (core, live) = start_core(
-        Some(packs.path().to_path_buf()),
+        Library::bundled_only(packs.path().to_path_buf()),
         None,
         playing(),
         perm(),
@@ -145,7 +146,7 @@ fn start_core_falls_back_to_the_default_pack() {
     fs::write(&path, file("nope")).unwrap();
     let (_, err) = fake_err();
     let (core, _live) = start_core(
-        Some(packs.path().to_path_buf()),
+        Library::bundled_only(packs.path().to_path_buf()),
         Some(path.clone()),
         playing(),
         perm(),
@@ -169,7 +170,7 @@ fn start_core_falls_back_to_the_built_in_click_with_no_packs() {
     fs::write(&path, file("nope")).unwrap();
     let (_, err) = fake_err();
     let (core, live) = start_core(
-        Some(packs.path().to_path_buf()),
+        Library::bundled_only(packs.path().to_path_buf()),
         Some(path),
         playing(),
         perm(),
@@ -188,7 +189,7 @@ fn start_core_falls_back_to_the_built_in_click_with_no_packs_folder() {
     let dir = TempDir::new("start");
     let (_, err) = fake_err();
     let (core, _live) = start_core(
-        None,
+        Library::none(),
         Some(dir.path().join("settings.json")),
         playing(),
         perm(),
@@ -223,7 +224,7 @@ fn publish_core_publishes_what_build_made_and_returns_its_live() {
     let gate = CoreGate::new();
     let live = publish_core(&gate, playing, perm(), &err, |audio| {
         start_core(
-            Some(packs.path().to_path_buf()),
+            Library::bundled_only(packs.path().to_path_buf()),
             Some(path.clone()),
             audio,
             perm(),
@@ -249,7 +250,7 @@ fn publish_core_publishes_a_core_when_the_pack_choice_falls_back() {
     let gate = CoreGate::new();
     let live = publish_core(&gate, playing, perm(), &err, |audio| {
         start_core(
-            Some(packs.path().to_path_buf()),
+            Library::bundled_only(packs.path().to_path_buf()),
             Some(path.clone()),
             audio,
             perm(),
@@ -271,7 +272,9 @@ fn publish_core_publishes_a_core_with_no_packs_or_no_packs_folder() {
         let gate = CoreGate::new();
         let live = publish_core(&gate, playing, perm(), &err, |audio| {
             start_core(
-                packs.as_ref().map(|p| p.path().to_path_buf()),
+                packs.as_ref().map_or_else(Library::none, |p| {
+                    Library::bundled_only(p.path().to_path_buf())
+                }),
                 Some(path.clone()),
                 audio,
                 perm(),
@@ -291,7 +294,13 @@ fn publish_core_publishes_a_core_when_there_is_no_settings_path() {
     let (_, err) = fake_err();
     let gate = CoreGate::new();
     let live = publish_core(&gate, playing, perm(), &err, |audio| {
-        start_core(Some(packs.path().to_path_buf()), None, audio, perm(), &err)
+        start_core(
+            Library::bundled_only(packs.path().to_path_buf()),
+            None,
+            audio,
+            perm(),
+            &err,
+        )
     });
     let core = published(&gate);
     let r = core.set_settings(&json!({"enabled": false})).unwrap();

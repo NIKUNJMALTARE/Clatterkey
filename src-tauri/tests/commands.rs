@@ -13,6 +13,7 @@ use std::sync::Arc;
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
 use mechanical_key_sounds_lib::commands::{Core, CoreParts};
 use mechanical_key_sounds_lib::keys::KeyCode;
+use mechanical_key_sounds_lib::packs::Library;
 use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
 use mechanical_key_sounds_lib::settings::{self, LoadProblem, Settings};
 use mechanical_key_sounds_lib::startup::choose_pack;
@@ -46,7 +47,7 @@ fn ac14_the_bundled_packs_are_listed_sorted_by_name_with_author_and_licence() {
     let chosen = choose_pack(Some(&bundled()), "brown", &err);
     let core = Core::new(CoreParts {
         settings_path: Some(rig.settings_path.clone()),
-        packs: Some(bundled()),
+        library: Library::bundled_only(bundled()),
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
@@ -118,7 +119,7 @@ fn ac14_with_no_packs_folder_or_an_empty_one_the_list_is_empty() {
     let loaded = settings::load_or_create_report(&rig.settings_path, &err);
     let core = Core::new(CoreParts {
         settings_path: None,
-        packs: None,
+        library: Library::none(),
         loaded,
         playing: None,
         fell_back: true,
@@ -159,7 +160,7 @@ fn get_settings_reports_the_output_status_as_it_is_now() {
     let s = Arc::clone(&status);
     let core = Core::new(CoreParts {
         settings_path: Some(rig.settings_path.clone()),
-        packs: Some(rig.packs_path.clone()),
+        library: Library::bundled_only(rig.packs_path.clone()),
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
@@ -640,7 +641,7 @@ fn ac22_a_failed_save_still_applies_the_change_and_says_why() {
     let live = Arc::new(Live::new(chosen.sounds));
     let core = Core::new(CoreParts {
         settings_path: Some(path),
-        packs: Some(packs.path().to_path_buf()),
+        library: Library::bundled_only(packs.path().to_path_buf()),
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
@@ -678,7 +679,7 @@ fn ac22_with_no_settings_path_the_change_applies_and_is_not_saved() {
     let live = Arc::new(Live::new(chosen.sounds));
     let core = Core::new(CoreParts {
         settings_path: None,
-        packs: Some(packs.path().to_path_buf()),
+        library: Library::bundled_only(packs.path().to_path_buf()),
         loaded: settings::Loaded {
             settings: Settings {
                 pack_id: "full".into(),
@@ -702,7 +703,7 @@ fn ac22_with_no_settings_path_the_change_applies_and_is_not_saved() {
 fn core_with_permission(permission: Arc<Permission>) -> Core {
     Core::new(CoreParts {
         settings_path: None,
-        packs: None,
+        library: Library::none(),
         loaded: settings::Loaded {
             settings: Settings::default(),
             problem: None,

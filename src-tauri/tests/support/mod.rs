@@ -27,6 +27,7 @@ use std::sync::Arc;
 
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player};
 use mechanical_key_sounds_lib::commands::{Core, CoreParts};
+use mechanical_key_sounds_lib::packs::Library;
 use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
 use mechanical_key_sounds_lib::settings;
 use mechanical_key_sounds_lib::startup::choose_pack;
@@ -78,7 +79,7 @@ pub fn rig_with(
     let live = Arc::new(Live::new(chosen.sounds));
     let core = Arc::new(Core::new(CoreParts {
         settings_path: Some(settings_path.clone()),
-        packs: Some(packs_dir.path().to_path_buf()),
+        library: Library::bundled_only(packs_dir.path().to_path_buf()),
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,

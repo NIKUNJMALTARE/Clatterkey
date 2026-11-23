@@ -10,7 +10,8 @@ mod start;
 use std::sync::{Arc, Condvar, Mutex};
 
 use serde_json::Value;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 
 use crate::audio::Previewer;
 use crate::keys::permission::SystemAccess;
@@ -87,6 +88,32 @@ pub fn preview(
     previewer: State<'_, Arc<Previewer>>,
 ) -> Result<(), String> {
     previewer.start(gate.wait().live())
+}
+
+/// The "Import pack…" button: opens the system's folder picker, then
+/// imports the folder chosen. `null` if the picker was cancelled. The
+/// window never names a path: the folder comes from the picker alone.
+#[tauri::command(async)]
+pub fn import_pack(app: AppHandle, gate: State<'_, Arc<CoreGate>>) -> Result<Value, String> {
+    let mut picker = app.dialog().file().set_title("Choose a sound pack folder");
+    if let Some(window) = app.get_webview_window("main") {
+        picker = picker.set_parent(&window);
+    }
+    // Blocks this command's thread, never the main one, until the user
+    // chooses or cancels.
+    let Some(path) = picker
+        .blocking_pick_folder()
+        .and_then(|chosen| chosen.into_path().ok())
+    else {
+        return Ok(Value::Null);
+    };
+    gate.wait().import_pack(&path)
+}
+
+/// Removes an imported pack. Bundled packs and unknown ids are refused.
+#[tauri::command(async)]
+pub fn remove_pack(gate: State<'_, Arc<CoreGate>>, id: String) -> Result<Value, String> {
+    gate.wait().remove_pack(&id)
 }
 
 /// The "Open System Settings" button. `false` where there is no permission

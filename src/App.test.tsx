@@ -23,6 +23,8 @@ vi.mock("./api", () => ({
 	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
 	preview: vi.fn(),
+	importPack: vi.fn(),
+	removePack: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -81,6 +83,7 @@ describe("AC1: the window loads with the saved values", () => {
 				author: null,
 				license: "MIT",
 				has_key_up: true,
+				imported: false,
 			},
 			PACKS[2],
 		]);

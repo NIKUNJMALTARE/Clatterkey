@@ -70,26 +70,75 @@ pub fn read_info(dir: &Path) -> Result<PackInfo, PackError> {
     }
 }
 
+/// How a pack's file names came about, which decides how an error reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Style {
+    /// From a `pack.json`: an error names the field and the file.
+    Manifest,
+    /// From the files found in a plain folder: an error names the file.
+    PlainFolder,
+}
+
+/// A loaded pack and the files it is made of.
+pub(super) struct Loaded {
+    pub pack: Pack,
+    /// Whether the manifest names a file for any key going up.
+    pub has_key_up: bool,
+    /// Each distinct file name as written, and where the file really is.
+    pub files: Vec<(String, PathBuf)>,
+}
+
 /// Loads the pack in `dir`. Every file is decoded into memory before this
 /// returns; if anything is wrong, the whole pack is rejected.
 pub fn load(dir: &Path) -> Result<Pack, PackError> {
+    load_folder(dir).map(|loaded| loaded.pack)
+}
+
+/// The folder `dir`, resolved, or why it cannot be used.
+pub(super) fn open_folder(dir: &Path) -> Result<PathBuf, PackError> {
+    let fail = |kind| PackError {
+        pack: id_of(dir),
+        field: None,
+        file: None,
+        kind,
+    };
+    let root = dir.canonicalize().map_err(|error| match error.kind() {
+        io::ErrorKind::NotFound => fail(Kind::FolderNotFound),
+        _ => fail(Kind::Unreadable(error.to_string())),
+    })?;
+    if !root.is_dir() {
+        return Err(fail(Kind::FolderNotFound));
+    }
+    Ok(root)
+}
+
+/// As `load`, also saying which files the pack is made of.
+pub(super) fn load_folder(dir: &Path) -> Result<Loaded, PackError> {
     let id = id_of(dir);
-    let fail = |field: Option<String>, file: Option<String>, kind: Kind| PackError {
+    let root = open_folder(dir)?;
+    let manifest = read_manifest(&root).map_err(|(field, kind)| PackError {
         pack: id.clone(),
         field,
+        file: None,
+        kind,
+    })?;
+    load_from(root, id, manifest, Style::Manifest)
+}
+
+/// Loads the files `manifest` names from the resolved folder `root`.
+pub(super) fn load_from(
+    root: PathBuf,
+    id: String,
+    manifest: Manifest,
+    style: Style,
+) -> Result<Loaded, PackError> {
+    let fail = |field: Option<String>, file: Option<String>, kind: Kind| PackError {
+        pack: id.clone(),
+        // A plain folder has no fields to point at.
+        field: field.filter(|_| style == Style::Manifest),
         file,
         kind,
     };
-
-    let root = dir.canonicalize().map_err(|error| match error.kind() {
-        io::ErrorKind::NotFound => fail(None, None, Kind::FolderNotFound),
-        _ => fail(None, None, Kind::Unreadable(error.to_string())),
-    })?;
-    if !root.is_dir() {
-        return Err(fail(None, None, Kind::FolderNotFound));
-    }
-
-    let manifest = read_manifest(&root).map_err(|(field, kind)| fail(field, None, kind))?;
 
     // Every file name must resolve inside the folder before anything is read.
     let mut entries = Vec::new();
@@ -148,16 +197,27 @@ pub fn load(dir: &Path) -> Result<Pack, PackError> {
     let sounds = SoundSet::new(down, up)
         .ok_or_else(|| fail(Some("keys.default".into()), None, Kind::EmptyDefault))?;
 
-    Ok(Pack {
-        id,
-        name: manifest.name,
-        author: manifest.author,
-        license: manifest.license,
-        sounds,
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    for entry in &entries {
+        if !files.iter().any(|(name, _)| *name == entry.name) {
+            files.push((entry.name.clone(), entry.path.clone()));
+        }
+    }
+
+    Ok(Loaded {
+        pack: Pack {
+            id,
+            name: manifest.name,
+            author: manifest.author,
+            license: manifest.license,
+            sounds,
+        },
+        has_key_up: manifest.up.iter().any(|files| !files.is_empty()),
+        files,
     })
 }
 
-fn read_manifest(root: &Path) -> Result<Manifest, (Option<String>, Kind)> {
+pub(super) fn read_manifest(root: &Path) -> Result<Manifest, (Option<String>, Kind)> {
     let path = root.join("pack.json");
     let size = match fs::metadata(&path) {
         Ok(meta) if meta.is_file() => meta.len(),

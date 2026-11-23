@@ -4,18 +4,25 @@
 //! returns one error saying what is wrong and where. It never returns part
 //! of a pack. Decoding is done by the `audio` module.
 
+mod import;
+mod library;
 mod load;
 mod manifest;
 mod paths;
+mod plain;
 
 use std::fmt;
 
 use crate::audio::{DecodeError, SoundSet};
 
+pub use import::{ImportError, Imported, import, import_with};
+pub(crate) use import::{removed_name, rename};
+pub use library::{Found, Library, Listed, is_pack_id};
 pub use load::{
     MAX_FILE_BYTES, MAX_FILE_LENGTH, MAX_FILES, MAX_MANIFEST_BYTES, MAX_TOTAL_LENGTH, load,
     read_info,
 };
+pub use plain::{UNSTATED_LICENCE, assign, pack_id_for};
 
 /// A loaded pack, every sound in memory.
 #[derive(Debug)]
@@ -81,6 +88,15 @@ pub enum PackErrorKind {
     Audio(DecodeError),
     TooManyFiles,
     TooMuchAudio,
+    /// A plain folder with no audio file in it.
+    NoAudioFiles,
+    /// A plain folder where every file is named for a special key or for
+    /// keys going up.
+    NoOrdinarySound,
+    /// A file name that is not Unicode text.
+    NotUtf8Name,
+    /// A file in a plain folder whose name has `:` or `\` in it.
+    PlainFileName,
 }
 
 impl fmt::Display for PackErrorKind {
@@ -118,6 +134,12 @@ impl fmt::Display for PackErrorKind {
             }
             Audio(error) => error.fmt(f),
             TooManyFiles => write!(f, "uses more than {MAX_FILES} different audio files"),
+            NoAudioFiles => f.write_str("no audio files found (WAV, OGG, MP3 or FLAC)"),
+            NoOrdinarySound => f.write_str(
+                "no sound for ordinary keys; at least one file must not be named for space, enter, backspace, modifier or -up",
+            ),
+            NotUtf8Name => f.write_str("file name is not valid text"),
+            PlainFileName => f.write_str("file names cannot contain : or \\; rename the file"),
             TooMuchAudio => write!(
                 f,
                 "has more than {} seconds of audio in total",
@@ -127,16 +149,23 @@ impl fmt::Display for PackErrorKind {
     }
 }
 
+impl PackError {
+    /// What is wrong and where, without naming the pack:
+    /// `keys.space[0] "down/space.wav": file not found`.
+    pub fn reason(&self) -> String {
+        let place = match (&self.field, &self.file) {
+            (Some(field), Some(file)) => format!("{field} {file:?}: "),
+            (Some(field), None) => format!("{field}: "),
+            (None, Some(file)) => format!("{file:?}: "),
+            (None, None) => String::new(),
+        };
+        format!("{place}{}", self.kind)
+    }
+}
+
 impl fmt::Display for PackError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "pack {:?}: ", self.pack)?;
-        match (&self.field, &self.file) {
-            (Some(field), Some(file)) => write!(f, "{field} {file:?}: ")?,
-            (Some(field), None) => write!(f, "{field}: ")?,
-            (None, Some(file)) => write!(f, "{file:?}: ")?,
-            (None, None) => {}
-        }
-        write!(f, "{}", self.kind)
+        write!(f, "pack {:?}: {}", self.pack, self.reason())
     }
 }
 

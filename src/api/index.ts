@@ -3,8 +3,10 @@ import { tauriCore } from "./tauri";
 import type {
 	AudioStatus,
 	CoreApi,
+	ImportResult,
 	PackInfo,
 	PermissionState,
+	RemoveResult,
 	SetResult,
 	SettingsPatch,
 	SettingsState,
@@ -52,6 +54,14 @@ export async function audioStatus(): Promise<AudioStatus> {
 
 export async function preview(): Promise<void> {
 	return (await core()).preview();
+}
+
+export async function importPack(): Promise<ImportResult | null> {
+	return (await core()).importPack();
+}
+
+export async function removePack(id: string): Promise<RemoveResult> {
+	return (await core()).removePack(id);
 }
 
 export async function permissionStatus(): Promise<PermissionState> {

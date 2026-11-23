@@ -46,6 +46,9 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::native::show_settings(app);
         }))
+        // The folder picker for importing a pack. Only the core opens it:
+        // the window is given no permission to.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Bundled packs are copied into the app's resource folder
             // (`bundle.resources` in `tauri.conf.json`).
@@ -53,6 +56,9 @@ pub fn run() {
                 .path()
                 .resolve("resources/packs", BaseDirectory::Resource)
                 .ok();
+            // Imported packs are copied here; the first import makes it.
+            let imported = app.path().app_data_dir().ok().map(|dir| dir.join("packs"));
+            let library = packs::Library::new(packs, imported);
             let settings_path = app
                 .path()
                 .app_config_dir()
@@ -72,7 +78,7 @@ pub fn run() {
             app.manage(Arc::new(audio::Previewer::new(
                 Arc::clone(&slot) as Arc<dyn audio::Sink>
             )));
-            app.manage(start_clicks(packs, settings_path, gate, permission, slot));
+            app.manage(start_clicks(library, settings_path, gate, permission, slot));
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -87,6 +93,8 @@ pub fn run() {
             commands::list_packs,
             commands::get_settings,
             commands::set_settings,
+            commands::import_pack,
+            commands::remove_pack,
             commands::audio_status,
             commands::preview,
             commands::permission_status,
@@ -169,7 +177,7 @@ fn start_tray(app: &AppHandle, gate: Arc<CoreGate>) {
 /// listener start. Where the OS has a key-listening permission (macOS), the
 /// listener starts when it is granted, and this thread goes on watching it.
 fn start_clicks(
-    packs: Option<PathBuf>,
+    library: packs::Library,
     settings_path: Option<PathBuf>,
     gate: Arc<CoreGate>,
     permission: Arc<Permission>,
@@ -190,7 +198,13 @@ fn start_clicks(
                 // The pack is loaded before the listener starts, so no key
                 // plays from a half-loaded pack.
                 let build = |audio| {
-                    commands::start_core(packs, settings_path, audio, Arc::clone(&permission), &err)
+                    commands::start_core(
+                        library,
+                        settings_path,
+                        audio,
+                        Arc::clone(&permission),
+                        &err,
+                    )
                 };
                 if SystemAccess.required() {
                     // The first check runs before the window's commands are

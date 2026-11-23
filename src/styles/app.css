@@ -107,6 +107,26 @@ h2 {
 	gap: var(--space-3);
 }
 
+/* The buttons beside a section's heading. */
+.section-actions {
+	display: flex;
+	flex: none;
+	gap: var(--space-2);
+}
+
+/* Said to screen readers, shown to no one. */
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
 /* The switch: a native checkbox drawn as a track and a thumb. */
 .switch {
 	appearance: none;
@@ -214,22 +234,59 @@ h2 {
 	border-radius: var(--radius-m);
 }
 
-.pack {
+/* A row: the pack to choose and, for an imported one, its Remove. */
+.pack-row {
 	display: flex;
 	align-items: center;
-	gap: var(--space-3);
-	min-height: 52px;
-	padding: var(--space-2) var(--space-4);
-	cursor: pointer;
 	transition: background-color var(--motion-fast);
 }
 
-.pack + .pack {
+.pack-row + .pack-row {
 	border-top: 1px solid var(--color-border);
 }
 
-.pack:has(input:checked) {
+.pack-row:has(input:checked) {
 	background: var(--color-accent-soft);
+}
+
+.pack {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--space-3);
+	min-width: 0;
+	min-height: 52px;
+	padding: var(--space-2) var(--space-4);
+	cursor: pointer;
+}
+
+/* Beside the label, never inside it: pressing here chooses no pack. */
+.pack-actions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--space-2);
+	padding-right: var(--space-3);
+}
+
+/*
+ * The question takes a line of its own under the pack, so a long name
+ * keeps the row's width and does not break inside its words.
+ */
+.pack-row:has(.pack-question) {
+	flex-wrap: wrap;
+}
+
+.pack-question {
+	flex: 0 0 100%;
+	justify-content: flex-end;
+	box-sizing: border-box;
+	padding-bottom: var(--space-2);
+}
+
+.pack-question-text {
+	color: var(--color-text-muted);
+	font-size: var(--font-size-secondary);
 }
 
 /* The ring goes round the whole row, inside the list's clipped edge. */
@@ -238,8 +295,8 @@ h2 {
  * so the second selector shows the ring for any focus while the keyboard
  * is in use; `main.tsx` keeps `data-keyboard` up to date.
  */
-.pack:has(input:focus-visible),
-:root[data-keyboard] .pack:has(input:focus) {
+.pack-row:has(input:focus-visible),
+:root[data-keyboard] .pack-row:has(input:focus) {
 	outline: 2px solid var(--color-focus);
 	outline-offset: -2px;
 }
@@ -275,12 +332,15 @@ h2 {
 
 .pack-text {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
 	min-width: 0;
 }
 
+/* A long name wraps inside its row; it never pushes Remove out. */
 .pack-name {
 	font-weight: var(--font-weight-strong);
+	overflow-wrap: anywhere;
 }
 
 .pack-credit {
@@ -377,6 +437,27 @@ h2 {
 	background: none;
 	border: 1px solid var(--color-control-border);
 	color: var(--color-text);
+}
+
+/* A button inside a pack's row. */
+.button-small {
+	min-height: 24px;
+	padding: var(--space-1) var(--space-2);
+	font-size: var(--font-size-secondary);
+	white-space: nowrap;
+}
+
+/* The button that deletes: an outline in the danger colour. */
+.button-danger {
+	background: none;
+	border: 1px solid var(--color-danger);
+	color: var(--color-danger);
+}
+
+/* Busy: still focusable, and it ignores presses. */
+.button[aria-disabled="true"] {
+	cursor: default;
+	opacity: 0.6;
 }
 
 /* A notice's own button sits beside its text and keeps to one line. */

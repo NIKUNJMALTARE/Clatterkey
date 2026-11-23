@@ -68,6 +68,17 @@ export interface Ready {
 	keyUpNote: string | null;
 	/** Why the last preview could not be played. */
 	previewError: string | null;
+	/** Whether the folder picker is open or an import is running. */
+	importing: boolean;
+	/** The whole notice for the last import that was refused. */
+	importError: string | null;
+	/** The whole notice for the last removal that failed. */
+	removeError: string | null;
+	/**
+	 * What to tell a screen reader about the pack list; `count` differs for
+	 * every announcement, so the same words can be said twice.
+	 */
+	announcement: { text: string; count: number } | null;
 	setEnabled(enabled: boolean): void;
 	setVolumePercent(percent: number): void;
 	/** Sends a volume that is waiting for the throttle, now. */
@@ -80,6 +91,15 @@ export interface Ready {
 	preview(): void;
 	dismissPreviewError(): void;
 	choosePack(id: string): void;
+	/**
+	 * Opens the folder picker and imports the folder chosen. Resolves with
+	 * whether a pack was imported; never rejects.
+	 */
+	importPack(): Promise<boolean>;
+	dismissImportError(): void;
+	/** Removes an imported pack. Resolves with whether it went. */
+	removePack(id: string): Promise<boolean>;
+	dismissRemoveError(): void;
 	dismissPackError(): void;
 	dismissChangeError(): void;
 	/** Rejects if System Settings could not be opened. */
@@ -154,6 +174,12 @@ export function useSettings(): SettingsView {
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	// Which preview was asked for last: an older one's answer is ignored.
 	const previewCount = useRef(0);
+	const [importing, setImporting] = useState(false);
+	const importingRef = useRef(false);
+	const [importError, setImportError] = useState<string | null>(null);
+	const [removeError, setRemoveError] = useState<string | null>(null);
+	const [announcement, setAnnouncement] = useState<Ready["announcement"]>(null);
+	const announcements = useRef(0);
 
 	useEffect(() => {
 		alive.current = true;
@@ -513,6 +539,81 @@ export function useSettings(): SettingsView {
 			});
 	}, []);
 
+	/** Takes the pack list a command returned as the one to show. */
+	const takePacks = useCallback((list: PackInfo[]) => {
+		packsRef.current = list;
+		setPacks(list);
+	}, []);
+
+	const announce = useCallback((text: string) => {
+		announcements.current += 1;
+		setAnnouncement({ text, count: announcements.current });
+	}, []);
+
+	const importPack = useCallback(async (): Promise<boolean> => {
+		// One picker at a time: a press while one is open does nothing.
+		if (importingRef.current) {
+			return false;
+		}
+		importingRef.current = true;
+		setImporting(true);
+		setImportError(null);
+		try {
+			const result = await api.importPack();
+			if (!alive.current || !result) {
+				return false;
+			}
+			takePacks(result.packs);
+			// The import chose the pack: a wish from before it is answered,
+			// unless a newer choice is still on its way to the core.
+			if (!queue.current.some((later) => later.key === "pack_id")) {
+				setDesired((d) => {
+					const { pack_id: _answered, ...rest } = d;
+					return rest;
+				});
+			}
+			confirmChange(result.change);
+			setPackError(null);
+			announce(`Imported ${result.pack.name}.`);
+			return true;
+		} catch (error) {
+			if (alive.current) {
+				setImportError(reasonOf(error));
+			}
+			return false;
+		} finally {
+			importingRef.current = false;
+			if (alive.current) {
+				setImporting(false);
+			}
+		}
+	}, [announce, confirmChange, takePacks]);
+
+	const removePack = useCallback(
+		async (id: string): Promise<boolean> => {
+			const name = packsRef.current.find((p) => p.id === id)?.name ?? id;
+			setRemoveError(null);
+			try {
+				const result = await api.removePack(id);
+				if (!alive.current) {
+					return false;
+				}
+				takePacks(result.packs);
+				if (result.change) {
+					confirmChange(result.change);
+				}
+				announce(`Removed ${name}.`);
+				return true;
+			} catch (error) {
+				if (alive.current) {
+					setRemoveError(`Could not remove ${name}: ${reasonOf(error)}`);
+				}
+				return false;
+			}
+		},
+		[announce, confirmChange, takePacks],
+	);
+
 	const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
 	if (phase === "loading") {
@@ -527,11 +628,15 @@ export function useSettings(): SettingsView {
 	const selectedPack = desired.pack_id ?? confirmed.playing;
 	const selected = packs.find((p) => p.id === selectedPack);
 	// A pack the list does not know plays as the built-in click does here.
+	// A pack that is selected but not listed yet (its list is on its way)
+	// gets no note: only the built-in click is known to have no key-up.
 	const keyUpNote = selected
 		? selected.has_key_up
 			? null
 			: `${selected.name} has no key-up sounds.`
-		: "The built-in click has no key-up sounds.";
+		: selectedPack === null
+			? "The built-in click has no key-up sounds."
+			: null;
 	return {
 		phase: "ready",
 		packs,
@@ -541,6 +646,14 @@ export function useSettings(): SettingsView {
 		keyUpSounds: desired.key_up_sounds ?? confirmed.settings.key_up_sounds,
 		keyUpNote,
 		previewError,
+		importing,
+		importError,
+		removeError,
+		announcement,
+		importPack,
+		dismissImportError: () => setImportError(null),
+		removePack,
+		dismissRemoveError: () => setRemoveError(null),
 		selectedPack,
 		audio,
 		permission,

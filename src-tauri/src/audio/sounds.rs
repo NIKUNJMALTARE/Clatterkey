@@ -128,7 +128,7 @@ impl SoundSet {
             1 => 0,
             _ => {
                 let last = list.last.load(Ordering::Relaxed);
-                let random = self.next_random() as usize;
+                let random = self.random() as usize;
                 if last < count {
                     // One of the other `count - 1`, uniformly.
                     (last + 1 + random % (count - 1)) % count
@@ -141,9 +141,10 @@ impl SoundSet {
         list.samples.get(index)
     }
 
-    /// xorshift32. Only the key thread calls this, so a load and a store are
-    /// enough; a lost update between threads would only repeat a number.
-    fn next_random(&self) -> u32 {
+    /// The next random number, xorshift32. The key thread calls this, and a
+    /// preview may at the same time. A load and a store are enough: a lost
+    /// update between the two would only repeat a number.
+    pub fn random(&self) -> u32 {
         let mut x = self.rng.load(Ordering::Relaxed);
         x ^= x << 13;
         x ^= x >> 17;

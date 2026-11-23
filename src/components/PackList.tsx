@@ -5,6 +5,8 @@ interface Props {
 	/** The id of the pack playing; null when none of them is. */
 	selected: string | null;
 	onChoose(id: string): void;
+	/** Plays a short phrase with the sounds in force. */
+	onPreview(): void;
 }
 
 /** "Author · licence", or the licence alone when there is no author. */
@@ -14,14 +16,24 @@ function credit(pack: PackInfo): string {
 
 /**
  * The packs, one chosen. Native radios in one group, so the list is a
- * single tab stop and the arrow keys move the choice.
+ * single tab stop and the arrow keys move the choice. Preview sits by the
+ * heading and is there with or without packs: it plays whatever is playing.
  */
-export function PackList({ packs, selected, onChoose }: Props) {
+export function PackList({ packs, selected, onChoose, onPreview }: Props) {
 	return (
 		<section className="packs">
-			<h2 id="packs-title" className="section-title">
-				Sound pack
-			</h2>
+			<div className="section-head">
+				<h2 id="packs-title" className="section-title">
+					Sound pack
+				</h2>
+				<button
+					type="button"
+					className="button button-secondary"
+					onClick={onPreview}
+				>
+					Preview
+				</button>
+			</div>
 			{packs.length === 0 ? (
 				<p className="packs-empty">
 					No sound packs were found. Reinstall the app.

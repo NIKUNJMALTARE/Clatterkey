@@ -78,12 +78,21 @@ impl Source for SampleSource {
         NonZero::new(self.sample.channels()).unwrap_or(NonZero::<u16>::MIN)
     }
 
+    /// The buffer's rate times the sample's speed. The mixer converts every
+    /// source to the device's rate on the audio thread, so a source that
+    /// says it is faster is played faster and higher.
     fn sample_rate(&self) -> SampleRate {
-        NonZero::new(self.sample.sample_rate()).unwrap_or(NonZero::<u32>::MIN)
+        let rate = f64::from(self.sample.sample_rate()) * f64::from(self.sample.speed());
+        // The cast saturates, so a huge rate cannot wrap.
+        NonZero::new(rate.round() as u32).unwrap_or(NonZero::<u32>::MIN)
     }
 
     fn total_duration(&self) -> Option<Duration> {
-        Some(self.sample.duration())
+        Some(
+            self.sample
+                .duration()
+                .div_f64(f64::from(self.sample.speed())),
+        )
     }
 }
 

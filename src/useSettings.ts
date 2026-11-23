@@ -13,7 +13,9 @@ import type {
 } from "./api/types";
 
 /** How often a moving slider's value is sent, at most. */
-const VOLUME_INTERVAL_MS = 100;
+const SLIDER_INTERVAL_MS = 100;
+/** The pitch variation slider's top: 30%, the most the core takes. */
+const MAX_PITCH_PERCENT = 30;
 /** How often the audio output's status is read. */
 const AUDIO_POLL_MS = 1000;
 /** How often the macOS permission's state is read, where there is one. */
@@ -21,6 +23,17 @@ const PERMISSION_POLL_MS = 1000;
 
 type Key = keyof SettingsPatch;
 type Change = { [K in Key]: { key: K; value: Settings[K] } }[Key];
+/** The settings a slider changes: sent at most every 100 ms while it moves. */
+type SliderKey = "volume" | "pitch_variation";
+
+function isSliderKey(key: Key): key is SliderKey {
+	return key === "volume" || key === "pitch_variation";
+}
+
+/** A slider's whole percentage as the setting: 35 is 0.35. */
+function fraction(percent: number, max: number): number {
+	return Math.min(max, Math.max(0, Math.round(percent))) / 100;
+}
 
 /** What the core last said is in force. */
 interface Confirmed {
@@ -46,12 +59,26 @@ export interface Ready {
 	packError: { name: string; reason: string } | null;
 	/** Why the last save failed. */
 	saveError: string | null;
-	/** Why the last change to the switch or the volume was refused. */
+	/** Why the last change to a switch or a slider was refused. */
 	changeError: string | null;
+	/** 0 to 30. */
+	pitchPercent: number;
+	keyUpSounds: boolean;
+	/** Says that what is playing has no key-up sounds; null when it has. */
+	keyUpNote: string | null;
+	/** Why the last preview could not be played. */
+	previewError: string | null;
 	setEnabled(enabled: boolean): void;
 	setVolumePercent(percent: number): void;
 	/** Sends a volume that is waiting for the throttle, now. */
 	flushVolume(): void;
+	setPitchPercent(percent: number): void;
+	/** Sends a pitch variation that is waiting for the throttle, now. */
+	flushPitch(): void;
+	setKeyUpSounds(on: boolean): void;
+	/** Plays the preview phrase. It changes no setting. */
+	preview(): void;
+	dismissPreviewError(): void;
 	choosePack(id: string): void;
 	dismissPackError(): void;
 	dismissChangeError(): void;
@@ -118,8 +145,15 @@ export function useSettings(): SettingsView {
 	// one at a time, so its answers arrive in the order of the requests.
 	const queue = useRef<Change[]>([]);
 	const sending = useRef(false);
-	const volumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const volumeWaiting = useRef<number | null>(null);
+	// Each slider's value not yet handed to the queue, and the timer that
+	// will hand it over.
+	const sliderTimers = useRef<
+		Partial<Record<SliderKey, ReturnType<typeof setTimeout>>>
+	>({});
+	const sliderWaiting = useRef<Partial<Record<SliderKey, number>>>({});
+	const [previewError, setPreviewError] = useState<string | null>(null);
+	// Which preview was asked for last: an older one's answer is ignored.
+	const previewCount = useRef(0);
 
 	useEffect(() => {
 		alive.current = true;
@@ -366,11 +400,11 @@ export function useSettings(): SettingsView {
 				}
 				// With no newer request for this field, show what the core
 				// confirmed: the new value, or the old one after a refusal.
-				// A volume still waiting for the throttle is a newer request
-				// too: without this the slider would jump back mid-drag.
+				// A slider value still waiting for the throttle is a newer
+				// request too: without this the slider would jump back mid-drag.
 				const newer =
 					queue.current.some((later) => later.key === key) ||
-					(key === "volume" && volumeWaiting.current !== null);
+					(isSliderKey(key) && sliderWaiting.current[key] !== undefined);
 				if (!newer) {
 					setDesired((d) => {
 						const { [key]: _answered, ...rest } = d;
@@ -397,33 +431,87 @@ export function useSettings(): SettingsView {
 		[send],
 	);
 
-	const flushVolume = useCallback(() => {
-		if (volumeTimer.current !== null) {
-			clearTimeout(volumeTimer.current);
-			volumeTimer.current = null;
-		}
-		const volume = volumeWaiting.current;
-		volumeWaiting.current = null;
-		if (volume !== null) {
-			change({ key: "volume", value: volume });
-		}
-	}, [change]);
+	/** Sends a slider's waiting value now, if it has one. */
+	const flushSlider = useCallback(
+		(key: SliderKey) => {
+			const timer = sliderTimers.current[key];
+			if (timer !== undefined) {
+				clearTimeout(timer);
+				delete sliderTimers.current[key];
+			}
+			const value = sliderWaiting.current[key];
+			delete sliderWaiting.current[key];
+			if (value !== undefined) {
+				change({ key, value });
+			}
+		},
+		[change],
+	);
 
-	const setVolumePercent = useCallback(
-		(percent: number) => {
-			const volume = Math.min(100, Math.max(0, Math.round(percent))) / 100;
-			setDesired((d) => ({ ...d, volume }));
-			volumeWaiting.current = volume;
+	/** Shows a slider's new value at once and sends it within 100 ms. */
+	const moveSlider = useCallback(
+		(key: SliderKey, value: number) => {
+			setDesired((d) => ({ ...d, [key]: value }));
+			sliderWaiting.current[key] = value;
 			// The timer is not restarted by later movements, so while the
 			// slider is dragged the core hears of it every 100 ms, and the
 			// last value is always sent.
-			volumeTimer.current ??= setTimeout(flushVolume, VOLUME_INTERVAL_MS);
+			sliderTimers.current[key] ??= setTimeout(
+				() => flushSlider(key),
+				SLIDER_INTERVAL_MS,
+			);
 		},
-		[flushVolume],
+		[flushSlider],
+	);
+
+	const flushVolume = useCallback(() => flushSlider("volume"), [flushSlider]);
+	const flushPitch = useCallback(
+		() => flushSlider("pitch_variation"),
+		[flushSlider],
+	);
+	const setVolumePercent = useCallback(
+		(percent: number) => moveSlider("volume", fraction(percent, 100)),
+		[moveSlider],
+	);
+	const setPitchPercent = useCallback(
+		(percent: number) =>
+			moveSlider("pitch_variation", fraction(percent, MAX_PITCH_PERCENT)),
+		[moveSlider],
 	);
 
 	// A value still waiting when the window goes is sent, not lost.
-	useEffect(() => flushVolume, [flushVolume]);
+	useEffect(
+		() => () => {
+			flushSlider("volume");
+			flushSlider("pitch_variation");
+		},
+		[flushSlider],
+	);
+
+	const preview = useCallback(() => {
+		previewCount.current += 1;
+		const mine = previewCount.current;
+		// A preview that starts answers the notice about the last one.
+		setPreviewError(null);
+		// Asked for at once, on the press, so nothing sits between the
+		// button and the sound.
+		let asked: Promise<void>;
+		try {
+			asked = Promise.resolve(api.preview());
+		} catch (error) {
+			asked = Promise.reject(error);
+		}
+		asked
+			.then(
+				() => null,
+				(error: unknown) => reasonOf(error),
+			)
+			.then((failure) => {
+				if (alive.current && mine === previewCount.current) {
+					setPreviewError(failure);
+				}
+			});
+	}, []);
 
 	const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
@@ -435,12 +523,25 @@ export function useSettings(): SettingsView {
 	}
 
 	const volume = desired.volume ?? confirmed.settings.volume;
+	const pitch = desired.pitch_variation ?? confirmed.settings.pitch_variation;
+	const selectedPack = desired.pack_id ?? confirmed.playing;
+	const selected = packs.find((p) => p.id === selectedPack);
+	// A pack the list does not know plays as the built-in click does here.
+	const keyUpNote = selected
+		? selected.has_key_up
+			? null
+			: `${selected.name} has no key-up sounds.`
+		: "The built-in click has no key-up sounds.";
 	return {
 		phase: "ready",
 		packs,
 		enabled: desired.enabled ?? confirmed.settings.enabled,
 		volumePercent: Math.round(volume * 100),
-		selectedPack: desired.pack_id ?? confirmed.playing,
+		pitchPercent: Math.round(pitch * 100),
+		keyUpSounds: desired.key_up_sounds ?? confirmed.settings.key_up_sounds,
+		keyUpNote,
+		previewError,
+		selectedPack,
 		audio,
 		permission,
 		startup,
@@ -451,6 +552,11 @@ export function useSettings(): SettingsView {
 		setEnabled: (enabled) => change({ key: "enabled", value: enabled }),
 		setVolumePercent,
 		flushVolume,
+		setPitchPercent,
+		flushPitch,
+		setKeyUpSounds: (on) => change({ key: "key_up_sounds", value: on }),
+		preview,
+		dismissPreviewError: () => setPreviewError(null),
 		choosePack: (id) => {
 			setPackError(null);
 			change({ key: "pack_id", value: id });

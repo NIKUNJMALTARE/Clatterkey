@@ -22,6 +22,7 @@ vi.mock("./api", () => ({
 	openPermissionSettings: vi.fn(),
 	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
+	preview: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -74,7 +75,13 @@ describe("AC1: the window loads with the saved values", () => {
 
 	it("AC1 edge: a pack with no author shows the licence alone", async () => {
 		healthyCore(state(), [
-			{ id: "blue", name: "Blue switches", author: null, license: "MIT" },
+			{
+				id: "blue",
+				name: "Blue switches",
+				author: null,
+				license: "MIT",
+				has_key_up: true,
+			},
 			PACKS[2],
 		]);
 		await loaded();

@@ -36,6 +36,8 @@ pub struct PackInfo {
     pub name: String,
     pub author: Option<String>,
     pub license: String,
+    /// Whether `pack.json` names a file for any key going up.
+    pub has_key_up: bool,
 }
 
 /// Why a pack was rejected. Shown as one line:

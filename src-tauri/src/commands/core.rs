@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde_json::{Map, Value, json};
 
-use crate::audio::{Live, OutputStatus, SoundSet};
+use crate::audio::{Live, MAX_PITCH_VARIATION, OutputStatus, SoundSet};
 use crate::packs;
 use crate::permission::Permission;
 use crate::settings::{self, LoadProblem, Loaded, Settings};
@@ -66,20 +66,34 @@ pub struct Core {
     listeners: Mutex<Vec<Listener>>,
 }
 
+/// The settings a patch may name. `launch_at_login` waits for its feature.
+const CHANGEABLE: [&str; 5] = [
+    "enabled",
+    "volume",
+    "pack_id",
+    "pitch_variation",
+    "key_up_sounds",
+];
+
 /// A checked change: only the fields the patch named.
 #[derive(Default)]
 struct Patch {
     enabled: Option<bool>,
     volume: Option<f64>,
     pack_id: Option<String>,
+    pitch_variation: Option<f64>,
+    key_up_sounds: Option<bool>,
 }
 
 impl Core {
-    /// Puts the loaded `enabled` and `volume` in force.
+    /// Puts the loaded `enabled`, `volume`, `pitch_variation` and
+    /// `key_up_sounds` in force.
     pub fn new(parts: CoreParts) -> Self {
         let Loaded { settings, problem } = parts.loaded;
         parts.live.set_enabled(settings.enabled);
         parts.live.set_volume(settings.volume);
+        parts.live.set_pitch_variation(settings.pitch_variation);
+        parts.live.set_key_up(settings.key_up_sounds);
         let replaced: Vec<&str> = match &problem {
             Some(LoadProblem::Replaced(fields)) => fields.clone(),
             _ => Vec::new(),
@@ -111,8 +125,15 @@ impl Core {
         self.state.lock().unwrap_or_else(|p| p.into_inner())
     }
 
+    /// The state the key path plays from, for the preview, which plays
+    /// from it too.
+    pub fn live(&self) -> Arc<Live> {
+        Arc::clone(&self.live)
+    }
+
     /// Every pack in the packs folder whose `pack.json` can be read:
-    /// `[{ id, name, author, license }]`, sorted by name. No audio is opened.
+    /// `[{ id, name, author, license, has_key_up }]`, sorted by name. No
+    /// audio is opened.
     pub fn list_packs(&self) -> Value {
         let mut found = Vec::new();
         if let Some(dir) = &self.packs
@@ -139,6 +160,7 @@ impl Core {
                     "name": info.name,
                     "author": info.author,
                     "license": info.license,
+                    "has_key_up": info.has_key_up,
                 })
             })
             .collect()
@@ -173,8 +195,8 @@ impl Core {
         }
     }
 
-    /// Applies a change to `enabled`, `volume` and `pack_id`, any of them,
-    /// and saves it. The whole patch is checked first, and a new pack is
+    /// Applies a change to `enabled`, `volume`, `pack_id`, `pitch_variation`
+    /// and `key_up_sounds`, any of them, and saves it. The whole patch is checked first, and a new pack is
     /// loaded before anything changes, so a rejected patch changes nothing
     /// and writes nothing. A save that fails is not an error: the change is
     /// in force and the result says it was not saved.
@@ -229,6 +251,14 @@ impl Core {
             state.settings.volume = volume;
             self.live.set_volume(volume);
         }
+        if let Some(variation) = patch.pitch_variation {
+            state.settings.pitch_variation = variation;
+            self.live.set_pitch_variation(variation);
+        }
+        if let Some(on) = patch.key_up_sounds {
+            state.settings.key_up_sounds = on;
+            self.live.set_key_up(on);
+        }
         if let Some(id) = patch.pack_id {
             if let Some(sounds) = new_sounds {
                 self.live.set_sounds(sounds);
@@ -256,10 +286,7 @@ impl Core {
         let Value::Object(map) = patch else {
             return Err("settings change: must be an object".to_string());
         };
-        if let Some(other) = map
-            .keys()
-            .find(|k| !matches!(k.as_str(), "enabled" | "volume" | "pack_id"))
-        {
+        if let Some(other) = map.keys().find(|k| !CHANGEABLE.contains(&k.as_str())) {
             return Err(format!("settings change: {other:?} cannot be changed here"));
         }
         Ok(Patch {
@@ -276,6 +303,21 @@ impl Core {
                 Some(Value::String(id)) => return Err(unknown_pack(id)),
                 Some(_) => return Err("settings change: pack_id must be a pack's id".to_string()),
             },
+            pitch_variation: field(
+                map,
+                "pitch_variation",
+                |v| {
+                    v.as_f64()
+                        .filter(|n| (0.0..=MAX_PITCH_VARIATION).contains(n))
+                },
+                "must be a number from 0 to 0.3",
+            )?,
+            key_up_sounds: field(
+                map,
+                "key_up_sounds",
+                |v| v.as_bool(),
+                "must be true or false",
+            )?,
         })
     }
 

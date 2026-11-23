@@ -303,7 +303,8 @@ fn ac23_nothing_from_key_codes_is_written_to_errors_or_the_settings_file() {
     for needle in ["KeyQ", "Digit7", "Space", "777", "Unknown"] {
         assert!(!text.contains(needle), "{needle} in the settings file");
     }
-    // Key-up sounds still play when the pack has them (feature 09 owns the
-    // switch): `full` has an up default, so each down and up plays.
-    assert_eq!(sink.count(), 8);
+    // The settings file has `key_up_sounds: false`, which feature 09 puts in
+    // force from the first key event: the four releases play nothing and
+    // only the four presses play.
+    assert_eq!(sink.count(), 4);
 }

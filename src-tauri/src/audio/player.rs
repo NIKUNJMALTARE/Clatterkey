@@ -2,12 +2,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{Live, Sample, SoundSet};
+use super::{Live, Sample, SoundSet, voice};
 use crate::keys::{KeyEvent, group_of};
 
 /// Somewhere a sound can be played. `play` returns at once and cannot fail:
 /// with no output it does nothing. It is given the sound and nothing else,
-/// so no key code can reach the audio layer. The sound carries its gain.
+/// so no key code can reach the audio layer. The sound carries its gain and
+/// its speed.
 pub trait Sink: Send + Sync {
     fn play(&self, sample: &Sample);
 }
@@ -58,8 +59,8 @@ impl Player {
                 *current = newer;
             }
         }
-        if let Some(sample) = current.1.pick(event.kind, group_of(event.code)) {
-            self.sink.play(&sample.with_gain(self.live.gain()));
+        if let Some(sample) = voice(&self.live, &current.1, event.kind, group_of(event.code)) {
+            self.sink.play(&sample);
         }
     }
 }

@@ -50,6 +50,10 @@ export async function audioStatus(): Promise<AudioStatus> {
 	return (await core()).audioStatus();
 }
 
+export async function preview(): Promise<void> {
+	return (await core()).preview();
+}
+
 export async function permissionStatus(): Promise<PermissionState> {
 	return (await core()).permissionStatus();
 }

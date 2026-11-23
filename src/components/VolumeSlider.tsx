@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { Slider } from "./Slider";
 
 interface Props {
 	/** 0 to 100. */
@@ -8,35 +8,17 @@ interface Props {
 	onRelease(): void;
 }
 
-/**
- * The volume, 0 to 100. A native range input, so arrows move by 1, Page Up
- * and Page Down by 10, and Home and End go to the ends.
- */
+/** The volume, 0 to 100. */
 export function VolumeSlider({ percent, onChange, onRelease }: Props) {
-	const text = `${percent}%`;
 	return (
-		<div className="row">
-			<label className="row-title" htmlFor="volume-slider">
-				Volume
-			</label>
-			<input
-				id="volume-slider"
-				className="slider"
-				type="range"
-				min={0}
-				max={100}
-				step={1}
-				value={percent}
-				aria-valuetext={text}
-				style={{ "--fill": text } as CSSProperties}
-				onChange={(event) => onChange(Number(event.target.value))}
-				onPointerUp={onRelease}
-				onKeyUp={onRelease}
-				onBlur={onRelease}
-			/>
-			<output className="slider-value" htmlFor="volume-slider">
-				{text}
-			</output>
-		</div>
+		<Slider
+			id="volume-slider"
+			label="Volume"
+			value={percent}
+			max={100}
+			text={`${percent}%`}
+			onChange={onChange}
+			onRelease={onRelease}
+		/>
 	);
 }

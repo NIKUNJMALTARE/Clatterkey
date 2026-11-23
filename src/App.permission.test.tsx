@@ -24,6 +24,7 @@ vi.mock("./api", () => ({
 	openPermissionSettings: vi.fn(),
 	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
+	preview: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);

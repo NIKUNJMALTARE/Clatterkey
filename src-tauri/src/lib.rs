@@ -67,7 +67,12 @@ pub fn run() {
             // granted; this is where the window reads how that stands.
             let permission = Arc::new(Permission::new(permission::initial_state(&SystemAccess)));
             app.manage(Arc::clone(&permission));
-            app.manage(start_clicks(packs, settings_path, gate, permission));
+            // Key presses and the Preview button play into the same slot.
+            let slot = Arc::new(audio::SinkSlot::new());
+            app.manage(Arc::new(audio::Previewer::new(
+                Arc::clone(&slot) as Arc<dyn audio::Sink>
+            )));
+            app.manage(start_clicks(packs, settings_path, gate, permission, slot));
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -83,6 +88,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::audio_status,
+            commands::preview,
             commands::permission_status,
             commands::open_permission_settings,
             commands::restart_app,
@@ -167,8 +173,8 @@ fn start_clicks(
     settings_path: Option<PathBuf>,
     gate: Arc<CoreGate>,
     permission: Arc<Permission>,
+    slot: Arc<audio::SinkSlot>,
 ) -> audio::OutputHandle {
-    let slot = Arc::new(audio::SinkSlot::new());
     let output = audio::spawn_output(Arc::clone(&slot));
 
     // Starting the listener can block briefly, and waiting on it blocks for

@@ -1,18 +1,38 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Notice, Notices } from "./components/Notices";
 import { PackList } from "./components/PackList";
-import { SoundSwitch } from "./components/SoundSwitch";
+import {
+	PERMISSION_HEADING_ID,
+	PermissionScreen,
+} from "./components/PermissionScreen";
+import { SOUND_SWITCH_ID, SoundSwitch } from "./components/SoundSwitch";
 import { VolumeSlider } from "./components/VolumeSlider";
 import { type Ready, useSettings } from "./useSettings";
 
-/** The notices to show, worst first. */
+/** Whether macOS is keeping the app from hearing keys. */
+function needsPermission(view: Ready): boolean {
+	return view.permission === "needed" || view.permission === "restart_needed";
+}
+
+/** The notices to show: the permission first, then worst first. */
 function noticesFor(
 	view: Ready,
 	dismissed: ReadonlySet<string>,
 	dismiss: (id: string) => void,
+	setUpPermission: () => void,
 ): Notice[] {
 	const notices: Notice[] = [];
 	const { startup } = view;
+
+	// Shown only after "Set up later": otherwise the permission screen is.
+	if (needsPermission(view)) {
+		notices.push({
+			id: "permission",
+			tone: "warning",
+			text: "Mechanical Key Sounds cannot hear your keys yet. It needs the Input Monitoring permission.",
+			action: { label: "Set up", onAction: setUpPermission },
+		});
+	}
 
 	if (view.audio === "no_device") {
 		notices.push({
@@ -78,7 +98,13 @@ function noticesFor(
 	return notices;
 }
 
-function Settings({ view }: { view: Ready }) {
+function Settings({
+	view,
+	setUpPermission,
+}: {
+	view: Ready;
+	setUpPermission: () => void;
+}) {
 	// Start-up notices the user has closed stay closed while the window is open.
 	const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 	const dismiss = (id: string) =>
@@ -86,7 +112,9 @@ function Settings({ view }: { view: Ready }) {
 
 	return (
 		<>
-			<Notices notices={noticesFor(view, dismissed, dismiss)} />
+			<Notices
+				notices={noticesFor(view, dismissed, dismiss, setUpPermission)}
+			/>
 			<section className="card">
 				<SoundSwitch enabled={view.enabled} onChange={view.setEnabled} />
 				<VolumeSlider
@@ -108,12 +136,48 @@ function Settings({ view }: { view: Ready }) {
 	);
 }
 
+/**
+ * The loaded window: the permission screen while macOS keeps the app from
+ * hearing keys, otherwise the settings.
+ */
+function Loaded({ view }: { view: Ready }) {
+	// "Set up later" lasts while the window does; it is never saved.
+	const [later, setLater] = useState(false);
+	const onScreen = needsPermission(view) && !later;
+
+	// When one view gives way to the other, what had focus is gone. It goes
+	// to the start of the new view, so a keyboard or screen-reader user is
+	// told of the change. Not on the first view: nothing was lost then.
+	const shown = useRef(onScreen);
+	useEffect(() => {
+		if (shown.current === onScreen) {
+			return;
+		}
+		shown.current = onScreen;
+		document
+			.getElementById(onScreen ? PERMISSION_HEADING_ID : SOUND_SWITCH_ID)
+			?.focus();
+	}, [onScreen]);
+
+	if (onScreen) {
+		return (
+			<PermissionScreen
+				restart={view.permission === "restart_needed"}
+				onOpen={view.openPermissionSettings}
+				onLater={() => setLater(true)}
+				onRestart={view.restartApp}
+			/>
+		);
+	}
+	return <Settings view={view} setUpPermission={() => setLater(false)} />;
+}
+
 export function App() {
 	const view = useSettings();
 	return (
 		<main className="window">
 			<h1 className="title">Mechanical Key Sounds</h1>
-			{view.phase === "ready" && <Settings view={view} />}
+			{view.phase === "ready" && <Loaded view={view} />}
 			{view.phase === "error" && (
 				<div className="load-error">
 					<p role="alert">Settings could not be loaded.</p>

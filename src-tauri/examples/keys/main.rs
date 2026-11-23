@@ -18,8 +18,8 @@ type Wait = Box<dyn FnOnce() -> Result<(), KeyListenError>>;
 
 #[cfg(target_os = "macos")]
 const START_LINE: &str = "Listening for keys; press Ctrl+C to stop. On macOS the terminal running \
-    this needs the Accessibility / Input Monitoring permission (System Settings, Privacy & \
-    Security); without it nothing is printed.";
+    this needs the Input Monitoring permission (System Settings, Privacy & Security); without \
+    it nothing is printed.";
 #[cfg(not(target_os = "macos"))]
 const START_LINE: &str = "Listening for keys; press Ctrl+C to stop.";
 

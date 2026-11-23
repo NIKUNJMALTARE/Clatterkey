@@ -13,6 +13,7 @@ use std::sync::Arc;
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
 use mechanical_key_sounds_lib::commands::{Core, CoreParts};
 use mechanical_key_sounds_lib::keys::KeyCode;
+use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
 use mechanical_key_sounds_lib::settings::{self, LoadProblem, Settings};
 use mechanical_key_sounds_lib::startup::choose_pack;
 use serde_json::{Value, json};
@@ -50,6 +51,7 @@ fn ac14_the_bundled_packs_are_listed_sorted_by_name_with_author_and_licence() {
         playing: chosen.playing,
         fell_back: chosen.fell_back,
         live: Arc::new(Live::new(chosen.sounds)),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
     });
     let list = core.list_packs();
@@ -121,6 +123,7 @@ fn ac14_with_no_packs_folder_or_an_empty_one_the_list_is_empty() {
         playing: None,
         fell_back: true,
         live: Arc::new(Live::new(SoundSet::single(builtin_click()))),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
     });
     assert_eq!(core.list_packs(), json!([]));
@@ -161,6 +164,7 @@ fn get_settings_reports_the_output_status_as_it_is_now() {
         playing: chosen.playing,
         fell_back: chosen.fell_back,
         live: Arc::new(Live::new(chosen.sounds)),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(move || match s.load(Ordering::SeqCst) {
             0 => OutputStatus::Playing,
             1 => OutputStatus::NoDevice,
@@ -648,6 +652,7 @@ fn ac22_a_failed_save_still_applies_the_change_and_says_why() {
         playing: chosen.playing,
         fell_back: chosen.fell_back,
         live: Arc::clone(&live),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
     });
 
@@ -691,9 +696,137 @@ fn ac22_with_no_settings_path_the_change_applies_and_is_not_saved() {
         playing: chosen.playing,
         fell_back: chosen.fell_back,
         live: Arc::clone(&live),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
     });
     let result = core.set_settings(&json!({"enabled": false})).unwrap();
     assert_eq!(result["saved"], false);
     assert!(!live.enabled());
+}
+
+// Feature 08, AC9: the permission state in get_settings and permission_status
+
+fn core_with_permission(permission: Arc<Permission>) -> Core {
+    Core::new(CoreParts {
+        settings_path: None,
+        packs: None,
+        loaded: settings::Loaded {
+            settings: Settings::default(),
+            problem: None,
+        },
+        playing: None,
+        fell_back: true,
+        live: Arc::new(Live::new(SoundSet::single(builtin_click()))),
+        permission,
+        audio: Box::new(|| OutputStatus::Playing),
+    })
+}
+
+#[test]
+fn ac9_get_settings_and_permission_status_carry_the_same_value_for_each_state() {
+    for (state, name) in [
+        (PermissionState::NotNeeded, "not_needed"),
+        (PermissionState::Needed, "needed"),
+        (PermissionState::Granted, "granted"),
+        (PermissionState::RestartNeeded, "restart_needed"),
+    ] {
+        let core = core_with_permission(Arc::new(Permission::new(state)));
+        assert_eq!(core.get_settings()["permission"], name);
+        assert_eq!(core.permission_status(), name);
+    }
+}
+
+#[test]
+fn ac9_the_value_follows_the_state_as_it_changes() {
+    let permission = Arc::new(Permission::new(PermissionState::Needed));
+    let core = core_with_permission(Arc::clone(&permission));
+    assert_eq!(core.permission_status(), "needed");
+    permission.set(PermissionState::Granted);
+    assert_eq!(core.permission_status(), "granted");
+    assert_eq!(core.get_settings()["permission"], "granted");
+}
+
+#[test]
+fn ac9_neither_waits_on_a_permission_check_that_is_blocked() {
+    use std::sync::{Condvar, Mutex};
+    use std::time::Duration;
+
+    use mechanical_key_sounds_lib::keys::KeyListenError;
+    use mechanical_key_sounds_lib::permission::{Keys, Os, Watcher};
+
+    struct Gate {
+        entered: Mutex<bool>,
+        entered_cv: Condvar,
+        open: Mutex<bool>,
+        open_cv: Condvar,
+    }
+    struct BlockedOs(Arc<Gate>);
+    impl Os for BlockedOs {
+        fn required(&self) -> bool {
+            true
+        }
+        fn granted(&self) -> bool {
+            *self.0.entered.lock().unwrap() = true;
+            self.0.entered_cv.notify_all();
+            let mut open = self.0.open.lock().unwrap();
+            while !*open {
+                open = self.0.open_cv.wait(open).unwrap();
+            }
+            false
+        }
+        fn request(&self) {}
+        fn open_pane(&self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    struct NoKeys;
+    impl Keys for NoKeys {
+        fn start(&mut self) -> Result<(), KeyListenError> {
+            Ok(())
+        }
+        fn stop(&mut self) {}
+        fn running(&self) -> bool {
+            false
+        }
+    }
+
+    let gate = Arc::new(Gate {
+        entered: Mutex::new(false),
+        entered_cv: Condvar::new(),
+        open: Mutex::new(false),
+        open_cv: Condvar::new(),
+    });
+    let permission = Arc::new(Permission::new(PermissionState::Needed));
+    let core = Arc::new(core_with_permission(Arc::clone(&permission)));
+    let (_, err) = fake_err();
+    let mut watcher = Watcher::new(
+        Arc::new(BlockedOs(Arc::clone(&gate))),
+        NoKeys,
+        Arc::clone(&permission),
+        err,
+    );
+    let handle = std::thread::spawn(move || {
+        watcher.step();
+    });
+    // Wait until the check is inside the OS call.
+    let mut entered = gate.entered.lock().unwrap();
+    while !*entered {
+        entered = gate.entered_cv.wait(entered).unwrap();
+    }
+    drop(entered);
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let c = Arc::clone(&core);
+    std::thread::spawn(move || {
+        let a = c.get_settings()["permission"].clone();
+        let b = c.permission_status();
+        tx.send((a, b)).unwrap();
+    });
+    let answered = rx.recv_timeout(Duration::from_secs(5));
+    *gate.open.lock().unwrap() = true;
+    gate.open_cv.notify_all();
+    handle.join().unwrap();
+    let (a, b) = answered.expect("answers while the check is blocked");
+    assert_eq!(a, "needed");
+    assert_eq!(b, "needed");
 }

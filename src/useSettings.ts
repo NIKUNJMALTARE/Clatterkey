@@ -5,6 +5,7 @@ import * as api from "./api";
 import type {
 	AudioStatus,
 	PackInfo,
+	PermissionState,
 	SetResult,
 	Settings,
 	SettingsPatch,
@@ -15,6 +16,8 @@ import type {
 const VOLUME_INTERVAL_MS = 100;
 /** How often the audio output's status is read. */
 const AUDIO_POLL_MS = 1000;
+/** How often the macOS permission's state is read, where there is one. */
+const PERMISSION_POLL_MS = 1000;
 
 type Key = keyof SettingsPatch;
 type Change = { [K in Key]: { key: K; value: Settings[K] } }[Key];
@@ -34,6 +37,8 @@ export interface Ready {
 	/** The selected pack's id; null when the built-in click is playing. */
 	selectedPack: string | null;
 	audio: AudioStatus;
+	/** The macOS key-listening permission, as the core last reported it. */
+	permission: PermissionState;
 	startup: StartupProblems;
 	/** The name of what played when the saved pack could not be used. */
 	fallbackName: string;
@@ -50,6 +55,9 @@ export interface Ready {
 	choosePack(id: string): void;
 	dismissPackError(): void;
 	dismissChangeError(): void;
+	/** Rejects if System Settings could not be opened. */
+	openPermissionSettings(): Promise<void>;
+	restartApp(): void;
 }
 
 export type SettingsView =
@@ -71,6 +79,15 @@ function isAudioStatus(value: unknown): value is AudioStatus {
 	return value === "playing" || value === "no_device" || value === "failed";
 }
 
+function isPermissionState(value: unknown): value is PermissionState {
+	return (
+		value === "not_needed" ||
+		value === "needed" ||
+		value === "granted" ||
+		value === "restart_needed"
+	);
+}
+
 export function useSettings(): SettingsView {
 	const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading");
 	const [attempt, setAttempt] = useState(0);
@@ -79,6 +96,7 @@ export function useSettings(): SettingsView {
 	const [startup, setStartup] = useState<StartupProblems | null>(null);
 	const [fallbackName, setFallbackName] = useState("");
 	const [audio, setAudio] = useState<AudioStatus>("playing");
+	const [permission, setPermission] = useState<PermissionState>("not_needed");
 	// What the user has asked for and the core has not yet answered. It is
 	// shown over `confirmed`, so a control never jumps back while waiting.
 	const [desired, setDesired] = useState<SettingsPatch>({});
@@ -214,6 +232,10 @@ export function useSettings(): SettingsView {
 						"the built-in click",
 				);
 				setAudio(state.audio);
+				// A core that does not say is one with no permission to give.
+				setPermission(
+					isPermissionState(state.permission) ? state.permission : "not_needed",
+				);
 				setPhase("ready");
 				loaded.current = true;
 				// A change that arrived during the read; dropped if the read
@@ -257,6 +279,26 @@ export function useSettings(): SettingsView {
 		return () => clearInterval(timer);
 	}, [phase]);
 
+	// The permission is given, and can be taken away, in System Settings
+	// while the window is open. Where there is none, nothing is asked.
+	const pollPermission = phase === "ready" && permission !== "not_needed";
+	useEffect(() => {
+		if (!pollPermission) {
+			return;
+		}
+		const timer = setInterval(() => {
+			Promise.resolve()
+				.then(() => api.permissionStatus())
+				.then((status) => {
+					if (alive.current && isPermissionState(status)) {
+						setPermission(status);
+					}
+				})
+				.catch(() => {});
+		}, PERMISSION_POLL_MS);
+		return () => clearInterval(timer);
+	}, [pollPermission]);
+
 	// A hidden window may miss an event, so when it is shown again or gains
 	// focus the settings are read again, quietly: no loading state, and a
 	// failure changes nothing.
@@ -272,6 +314,9 @@ export function useSettings(): SettingsView {
 				.then(() => api.getSettings())
 				.then((state) => {
 					confirm(state);
+					if (alive.current && isPermissionState(state?.permission)) {
+						setPermission(state.permission);
+					}
 				})
 				.catch(() => {});
 		};
@@ -397,6 +442,7 @@ export function useSettings(): SettingsView {
 		volumePercent: Math.round(volume * 100),
 		selectedPack: desired.pack_id ?? confirmed.playing,
 		audio,
+		permission,
 		startup,
 		fallbackName,
 		packError,
@@ -411,5 +457,13 @@ export function useSettings(): SettingsView {
 		},
 		dismissPackError: () => setPackError(null),
 		dismissChangeError: () => setChangeError(null),
+		openPermissionSettings: () =>
+			Promise.resolve().then(() => api.openPermissionSettings()),
+		restartApp: () => {
+			// If the restart fails the screen stays, with its button.
+			Promise.resolve()
+				.then(() => api.restartApp())
+				.catch(() => {});
+		},
 	};
 }

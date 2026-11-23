@@ -9,6 +9,7 @@ use serde_json::{Map, Value, json};
 
 use crate::audio::{Live, OutputStatus, SoundSet};
 use crate::packs;
+use crate::permission::Permission;
 use crate::settings::{self, LoadProblem, Loaded, Settings};
 use crate::startup::{is_pack_id, load_pack, names_a_pack};
 
@@ -35,6 +36,8 @@ pub struct CoreParts {
     pub fell_back: bool,
     /// The state the key path plays from.
     pub live: Arc<Live>,
+    /// The macOS key-listening permission, as the watcher last found it.
+    pub permission: Arc<Permission>,
     pub audio: AudioStatus,
 }
 
@@ -54,6 +57,7 @@ pub struct Core {
     settings_path: Option<PathBuf>,
     packs: Option<PathBuf>,
     live: Arc<Live>,
+    permission: Arc<Permission>,
     audio: AudioStatus,
     /// The start-up problems, as `get_settings` reports them.
     startup: Value,
@@ -89,6 +93,7 @@ impl Core {
             settings_path: parts.settings_path,
             packs: parts.packs,
             live: parts.live,
+            permission: parts.permission,
             audio: parts.audio,
             startup,
             state: Mutex::new(State {
@@ -148,8 +153,15 @@ impl Core {
             "playing_pack": state.playing,
             "startup": self.startup,
             "audio": self.audio_status(),
+            "permission": self.permission_status(),
             "revision": state.revision,
         })
+    }
+
+    /// `"not_needed"`, `"needed"`, `"granted"` or `"restart_needed"`. Reads
+    /// an atomic: it never waits on the permission check.
+    pub fn permission_status(&self) -> &'static str {
+        self.permission.state().as_str()
     }
 
     /// `"playing"`, `"no_device"` or `"failed"`.

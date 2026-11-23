@@ -4,6 +4,7 @@
 import type {
 	CoreApi,
 	PackInfo,
+	PermissionState,
 	SetResult,
 	Settings,
 	SettingsPatch,
@@ -12,10 +13,12 @@ import type {
 
 /**
  * Stands in for the tray in a plain browser: `window.__mksFake` changes the
- * settings from outside the window, as the tray's "Sound" item does.
+ * settings from outside the window, as the tray's "Sound" item does, and
+ * moves the macOS permission between its states, as System Settings does.
  */
 export interface FakeControls {
 	outsideChange(patch: SettingsPatch, options?: { saveFails?: boolean }): void;
+	setPermission(permission: PermissionState): void;
 }
 
 declare global {
@@ -48,6 +51,9 @@ const STATES = [
 	"pack-load-error",
 	"save-error",
 	"no-packs",
+	"permission-needed",
+	"permission-restart",
+	"permission-open-fails",
 ] as const;
 
 type FakeState = (typeof STATES)[number];
@@ -75,6 +81,13 @@ export function createFakeCore(search: string): CoreApi {
 	};
 	let playing: string | null = state === "no-packs" ? null : "brown";
 	let revision = 0;
+	// Every state but the permission ones is a platform with no permission.
+	let permission: PermissionState =
+		state === "permission-needed" || state === "permission-open-fails"
+			? "needed"
+			: state === "permission-restart"
+				? "restart_needed"
+				: "not_needed";
 	const listeners = new Set<(result: SetResult) => void>();
 
 	/** Applies a change as the core does and tells every listener. */
@@ -101,6 +114,9 @@ export function createFakeCore(search: string): CoreApi {
 		outsideChange: (patch, options) => {
 			applied(patch, options?.saveFails ?? false);
 		},
+		setPermission: (next) => {
+			permission = next;
+		},
 	};
 
 	const opening = (): SettingsState => ({
@@ -118,6 +134,7 @@ export function createFakeCore(search: string): CoreApi {
 				: state === "audio-error"
 					? "failed"
 					: "playing",
+		permission,
 		revision,
 	});
 
@@ -140,6 +157,18 @@ export function createFakeCore(search: string): CoreApi {
 			return applied(patch, state === "save-error");
 		},
 		audioStatus: () => later(opening().audio),
+		permissionStatus: () => later(permission),
+		openPermissionSettings: async () => {
+			await later(null);
+			if (state === "permission-open-fails") {
+				throw "open ended with exit status: 1";
+			}
+		},
+		restartApp: async () => {
+			await later(null);
+			// A restarted app comes back with the listener running.
+			permission = "granted";
+		},
 		onSettingsChanged: async (listener) => {
 			listeners.add(listener);
 			return () => {

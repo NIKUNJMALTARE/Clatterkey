@@ -19,6 +19,9 @@ vi.mock("./api", () => ({
 	getSettings: vi.fn(),
 	setSettings: vi.fn(),
 	audioStatus: vi.fn(),
+	permissionStatus: vi.fn(),
+	openPermissionSettings: vi.fn(),
+	restartApp: vi.fn(),
 	onSettingsChanged: vi.fn(),
 }));
 

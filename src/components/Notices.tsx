@@ -5,6 +5,8 @@ export interface Notice {
 	text: string;
 	/** Absent for notices that go away by themselves. */
 	onDismiss?: () => void;
+	/** A button that does something about what the notice says. */
+	action?: { label: string; onAction: () => void };
 }
 
 /**
@@ -42,6 +44,15 @@ export function Notices({ notices }: { notices: Notice[] }) {
 					role={notice.tone === "error" ? "alert" : "status"}
 				>
 					<p>{notice.text}</p>
+					{notice.action && (
+						<button
+							type="button"
+							className="button notice-action"
+							onClick={notice.action.onAction}
+						>
+							{notice.action.label}
+						</button>
+					)}
 					{notice.onDismiss && (
 						<button
 							type="button"

@@ -162,7 +162,10 @@ fn ac12_macos_start_up_line_mentions_the_permission() {
         &mut err,
     );
     let printed = text(&buf);
-    assert!(printed.contains("Accessibility"), "output was: {printed:?}");
+    assert!(
+        !printed.contains("Accessibility"),
+        "output was: {printed:?}"
+    );
     assert!(
         printed.contains("Input Monitoring"),
         "output was: {printed:?}"

@@ -2,6 +2,7 @@ pub mod audio;
 pub mod commands;
 pub mod keys;
 pub mod packs;
+pub mod permission;
 pub mod settings;
 pub mod startup;
 pub mod tray;
@@ -14,6 +15,8 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 use commands::CoreGate;
+use keys::permission::SystemAccess;
+use permission::{Os, Permission, PermissionState, Watcher};
 use tray::native::TrayPresent;
 use tray::{CloseDecision, ExitDecision, TraySync};
 
@@ -60,7 +63,11 @@ pub fn run() {
             let gate = Arc::new(CoreGate::new());
             app.manage(Arc::clone(&gate));
             start_tray(app.handle(), Arc::clone(&gate));
-            app.manage(start_clicks(packs, settings_path, gate));
+            // On macOS the listener starts only once Input Monitoring is
+            // granted; this is where the window reads how that stands.
+            let permission = Arc::new(Permission::new(permission::initial_state(&SystemAccess)));
+            app.manage(Arc::clone(&permission));
+            app.manage(start_clicks(packs, settings_path, gate, permission));
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -76,6 +83,9 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::audio_status,
+            commands::permission_status,
+            commands::open_permission_settings,
+            commands::restart_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -150,11 +160,13 @@ fn start_tray(app: &AppHandle, gate: Arc<CoreGate>) {
 /// with defaults if missing; see `settings::load_or_create_report` and
 /// `startup::choose_pack` for the fallbacks. Once both are done the `Core`
 /// is published to `gate` for the settings window, and only then does the
-/// listener start.
+/// listener start. Where the OS has a key-listening permission (macOS), the
+/// listener starts when it is granted, and this thread goes on watching it.
 fn start_clicks(
     packs: Option<PathBuf>,
     settings_path: Option<PathBuf>,
     gate: Arc<CoreGate>,
+    permission: Arc<Permission>,
 ) -> audio::OutputHandle {
     let slot = Arc::new(audio::SinkSlot::new());
     let output = audio::spawn_output(Arc::clone(&slot));
@@ -164,35 +176,107 @@ fn start_clicks(
     // clicks.
     let spawned = {
         let (gate, output) = (Arc::clone(&gate), output.clone());
+        let permission = Arc::clone(&permission);
         std::thread::Builder::new()
             .name("startup".into())
             .spawn(move || {
                 let err: ErrorOut = Arc::new(Mutex::new(std::io::stderr()));
                 // The pack is loaded before the listener starts, so no key
                 // plays from a half-loaded pack.
-                let live = commands::publish_core(
-                    &gate,
-                    || status_of(&output),
-                    &err,
-                    |audio| commands::start_core(packs, settings_path, audio, &err),
-                );
-                startup::run_live(
-                    |consumer| {
-                        let listener = keys::start(consumer)?;
-                        Ok(Box::new(move || listener.wait()) as startup::Wait)
-                    },
-                    slot,
-                    live,
-                    err,
-                );
+                let build = |audio| {
+                    commands::start_core(packs, settings_path, audio, Arc::clone(&permission), &err)
+                };
+                if SystemAccess.required() {
+                    // The first check runs before the window's commands are
+                    // let through, so its first read has the true state and
+                    // it never shows the permission screen by mistake.
+                    let mut watcher = None;
+                    commands::publish_core_after(
+                        &gate,
+                        || status_of(&output),
+                        Arc::clone(&permission),
+                        &err,
+                        build,
+                        |live| {
+                            let keys = startup::LiveKeys::new(
+                                start_listener,
+                                slot,
+                                Arc::clone(live),
+                                Arc::clone(&err),
+                            );
+                            let mut first = Watcher::new(
+                                Arc::new(SystemAccess),
+                                keys,
+                                Arc::clone(&permission),
+                                Arc::clone(&err),
+                            );
+                            first.step();
+                            watcher = Some(first);
+                        },
+                    );
+                    match watcher {
+                        Some(watcher) => {
+                            std::thread::sleep(permission::CHECK_WHILE_MISSING);
+                            watcher.watch(std::thread::sleep);
+                        }
+                        // The first check failed, so nothing will listen.
+                        None => permission.set(PermissionState::RestartNeeded),
+                    }
+                } else {
+                    let live = commands::publish_core(
+                        &gate,
+                        || status_of(&output),
+                        Arc::clone(&permission),
+                        &err,
+                        build,
+                    );
+                    startup::run_live(
+                        |consumer| {
+                            let listener = keys::start(consumer)?;
+                            Ok(Box::new(move || listener.wait()) as startup::Wait)
+                        },
+                        slot,
+                        live,
+                        err,
+                    );
+                }
             })
     };
     if spawned.is_err() {
+        // Nothing will listen or watch the permission in this run, so the
+        // window must not promise that granting it starts the sound.
+        if SystemAccess.required() {
+            permission.set(PermissionState::RestartNeeded);
+        }
         // No clicks, but the window must still open with its controls.
-        gate.publish(Arc::new(commands::plain_core(status_of(&output)).0));
+        gate.publish(Arc::new(
+            commands::plain_core(status_of(&output), permission).0,
+        ));
     }
 
     output
+}
+
+/// Starts the real key listener for the permission watcher, which may stop
+/// it and start another later.
+fn start_listener(consumer: startup::Consumer) -> Result<startup::Running, keys::KeyListenError> {
+    let listener = Arc::new(Mutex::new(Some(keys::start(consumer)?)));
+    let held = Arc::clone(&listener);
+    Ok(startup::Running {
+        stop: Box::new(move || {
+            let taken = held.lock().unwrap_or_else(|p| p.into_inner()).take();
+            if let Some(listener) = taken {
+                listener.stop();
+            }
+        }),
+        finished: Box::new(move || {
+            listener
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .as_ref()
+                .is_none_or(keys::Listener::is_finished)
+        }),
+    })
 }
 
 fn status_of(output: &audio::OutputHandle) -> commands::AudioStatus {

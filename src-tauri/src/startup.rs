@@ -5,10 +5,12 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::audio::{Live, Player, Sink, SoundSet, builtin_click};
 use crate::keys::{KeyEvent, KeyListenError};
 use crate::packs;
+use crate::permission::Keys;
 use crate::settings::DEFAULT_PACK;
 
 /// Receives key events on the listener's thread.
@@ -18,6 +20,83 @@ pub type Consumer = Box<dyn FnMut(KeyEvent) + Send>;
 pub type Wait = Box<dyn FnOnce() -> Result<(), KeyListenError>>;
 
 pub use crate::{ErrorOut, write_line};
+
+/// A listener that has been started: how to stop it, and whether it has
+/// ended by itself.
+pub struct Running {
+    pub stop: Box<dyn FnOnce() + Send>,
+    pub finished: Box<dyn Fn() -> bool + Send>,
+}
+
+/// The key listener as the permission watcher drives it: it can be started
+/// more than once, one at a time. Every start plays as `live` says at that
+/// moment, into `sink`.
+pub struct LiveKeys<S> {
+    start: S,
+    sink: Arc<dyn Sink>,
+    live: Arc<Live>,
+    err: ErrorOut,
+    running: Option<Running>,
+    /// Set by the listener running now when its first key event arrives.
+    heard: Arc<AtomicBool>,
+}
+
+impl<S> LiveKeys<S>
+where
+    S: FnMut(Consumer) -> Result<Running, KeyListenError>,
+{
+    pub fn new(start: S, sink: Arc<dyn Sink>, live: Arc<Live>, err: ErrorOut) -> Self {
+        Self {
+            start,
+            sink,
+            live,
+            err,
+            running: None,
+            heard: Arc::default(),
+        }
+    }
+}
+
+impl<S> Keys for LiveKeys<S>
+where
+    S: FnMut(Consumer) -> Result<Running, KeyListenError>,
+{
+    fn start(&mut self) -> Result<(), KeyListenError> {
+        // Never two listeners: the one before is ended first.
+        self.stop();
+        let player = Player::with_live(Arc::clone(&self.sink), Arc::clone(&self.live));
+        let mut play = key_consumer(player, Arc::clone(&self.err));
+        // Each listener has its own flag, so a key heard by the one before
+        // says nothing about this one. On the key path this is one atomic
+        // read, and one write for the first key only.
+        let heard = Arc::new(AtomicBool::new(false));
+        self.heard = Arc::clone(&heard);
+        let consumer = Box::new(move |event| {
+            if !heard.load(Ordering::Relaxed) {
+                heard.store(true, Ordering::Relaxed);
+            }
+            play(event);
+        });
+        self.running = Some((self.start)(consumer)?);
+        Ok(())
+    }
+
+    fn stop(&mut self) {
+        if let Some(running) = self.running.take() {
+            (running.stop)();
+        }
+    }
+
+    fn running(&self) -> bool {
+        self.running
+            .as_ref()
+            .is_some_and(|running| !(running.finished)())
+    }
+
+    fn heard(&self) -> bool {
+        self.running.is_some() && self.heard.load(Ordering::Relaxed)
+    }
+}
 
 /// The consumer to give the key listener: it plays the sound for each key
 /// event, and writes nothing per key.

@@ -27,6 +27,7 @@ use std::sync::Arc;
 
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player};
 use mechanical_key_sounds_lib::commands::{Core, CoreParts};
+use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
 use mechanical_key_sounds_lib::settings;
 use mechanical_key_sounds_lib::startup::choose_pack;
 
@@ -82,6 +83,7 @@ pub fn rig_with(
         playing: chosen.playing,
         fell_back: chosen.fell_back,
         live: Arc::clone(&live),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
     }));
     let sink = Arc::new(RecordingSink::default());

@@ -1,0 +1,323 @@
+name: release
+
+# Builds the macOS disk image and the Windows installer.
+#
+# - A pushed tag `vX.Y.Z` builds both and attaches them, with their SHA-256
+#   sums, to a draft release. Publishing the draft is done by hand.
+# - A manual run, or a pull request that changes the release files, builds
+#   both and keeps them as artifacts of the run. No release is made.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - src-tauri/tauri.conf.json
+      - src-tauri/windows/**
+      - scripts/check-version.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # For a tag, the tag must be `v` + the project's version.
+      - name: Check the version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # Only a pushed tag is a release. A manual run started on a tag is
+          # a build-only run like any other.
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tag" ]; then
+            version=$(node scripts/check-version.mjs --tag "$REF_NAME")
+          else
+            version=$(node scripts/check-version.mjs)
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+          echo "Version: $version"
+
+      # A published release is never changed, so nothing is built for one.
+      # (A draft is not visible to this job's read-only token; the release
+      # job looks again.)
+      - name: Refuse a tag whose release is already published
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          published=$(gh api "repos/$GH_REPO/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\" and .draft == false) | .id")
+          if [ -n "$published" ]; then
+            echo "The release for $TAG is already published. It is not changed; release a new version instead." >&2
+            exit 1
+          fi
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # Apple silicon
+            name: macos
+          - os: windows-latest # x64
+            name: windows
+    runs-on: ${{ matrix.os }}
+    # A stuck disk-image step must not hold a runner for the six-hour default.
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Installs the version and components named in rust-toolchain.toml.
+      - name: Set up Rust
+        run: rustup toolchain install
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # No arguments: src-tauri/tauri.conf.json alone decides what is built,
+      # so a build on a developer's machine is the same.
+      - name: Build
+        run: npm run tauri build
+
+      - name: Verify the disk image (macOS)
+        if: matrix.name == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          fail() { echo "verify failed: $*" >&2; exit 1; }
+
+          dmgs=(src-tauri/target/release/bundle/dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] || fail "expected one .dmg, found ${#dmgs[@]}"
+          dmg=${dmgs[0]}
+          echo "Disk image: $dmg"
+
+          mount=$(mktemp -d)
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount" >/dev/null
+          trap 'hdiutil detach "$mount" >/dev/null || true' EXIT
+
+          app="$mount/Mechanical Key Sounds.app"
+          [ -d "$app" ] || fail "the disk image does not hold Mechanical Key Sounds.app"
+          [ -L "$mount/Applications" ] || fail "the disk image has no Applications shortcut"
+
+          plist="$app/Contents/Info.plist"
+          exe="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")"
+
+          archs=$(lipo -archs "$exe")
+          [ "$archs" = "arm64" ] || fail "the executable is '$archs', expected arm64 only"
+
+          codesign --verify --deep --strict "$app" || fail "the signature does not verify"
+          # Read whole, then searched: `grep -q` would close the pipe early.
+          signature=$(codesign -dv "$app" 2>&1)
+          grep -q '^Signature=adhoc$' <<< "$signature" || fail "the app is not ad-hoc signed"
+
+          built=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")
+          [ "$built" = "$VERSION" ] || fail "the app's version is '$built', expected '$VERSION'"
+
+          minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")
+          [ "$minimum" = "12.0" ] || fail "the minimum system version is '$minimum', expected 12.0"
+
+          for pack in blue brown red typewriter; do
+            [ -f "$app/Contents/Resources/resources/packs/$pack/pack.json" ] \
+              || fail "the bundled pack '$pack' is missing"
+          done
+
+          mkdir -p release-files
+          cp "$dmg" "release-files/Mechanical-Key-Sounds_${VERSION}_aarch64.dmg"
+          echo "Verified: arm64, ad-hoc signed, version $built, four packs."
+
+      - name: Verify the installer (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = "src-tauri/target/release/bundle"
+
+          $installers = @(Get-ChildItem "$bundle/nsis" -Filter "*-setup.exe")
+          if ($installers.Count -ne 1) { throw "verify failed: expected one setup .exe, found $($installers.Count)" }
+          $installer = $installers[0]
+          Write-Host "Installer: $($installer.FullName)"
+
+          if (Test-Path "$bundle/msi") { throw "verify failed: an .msi was built" }
+
+          if (-not $installer.Name.EndsWith("_$($env:VERSION)_x64-setup.exe")) {
+            throw "verify failed: '$($installer.Name)' does not carry version $($env:VERSION) and x64"
+          }
+
+          # The file's own version resource: X.Y.Z, without any pre-release part.
+          $numeric = ($env:VERSION -split "-")[0]
+          $built = $installer.VersionInfo.ProductVersion
+          if (-not ($built -and $built.StartsWith($numeric))) {
+            throw "verify failed: the installer's product version is '$built', expected $numeric"
+          }
+
+          New-Item -ItemType Directory -Force release-files | Out-Null
+          Copy-Item $installer.FullName "release-files/Mechanical-Key-Sounds_$($env:VERSION)_x64-setup.exe"
+          Write-Host "Verified: one x64 setup .exe, version $built, no .msi."
+
+      # Named without spaces: GitHub would turn spaces into dots, and the
+      # sums file would then name files that do not exist.
+      - name: Keep the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-${{ matrix.name }}
+          path: release-files/*
+          if-no-files-found: error
+          retention-days: 7
+
+      # The NSIS script Tauri generated, to read what the installer does.
+      - name: Keep the generated installer script (Windows)
+        if: matrix.name == 'windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: nsis-script
+          path: src-tauri/target/release/nsis/**/installer.nsi
+          if-no-files-found: warn
+          retention-days: 7
+
+  sums:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Fetch both installers
+        uses: actions/download-artifact@v8
+        with:
+          pattern: installer-*
+          path: release-files
+          merge-multiple: true
+
+      - name: Write and check SHA256SUMS.txt
+        working-directory: release-files
+        run: |
+          set -euo pipefail
+          dmg="Mechanical-Key-Sounds_${VERSION}_aarch64.dmg"
+          exe="Mechanical-Key-Sounds_${VERSION}_x64-setup.exe"
+          ls -l
+          [ "$(ls | wc -l)" -eq 2 ] || { echo "expected exactly the two installers" >&2; exit 1; }
+          sha256sum "$dmg" "$exe" > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Keep the release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-files
+          path: release-files/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # Only for a pushed tag (never a manual run, even one started on a tag),
+  # and only when both builds passed. To repeat it for a tag, re-run the
+  # tag's own run. The tag has been checked against the version by the
+  # `version` job, which is also what makes it safe to use in the queries.
+  release:
+    needs: [version, build, sums]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - name: Fetch the release files
+        uses: actions/download-artifact@v8
+        with:
+          name: release-files
+          path: release-files
+
+      - name: Create or update the draft release
+        run: |
+          set -euo pipefail
+          files=(
+            "release-files/Mechanical-Key-Sounds_${VERSION}_aarch64.dmg"
+            "release-files/Mechanical-Key-Sounds_${VERSION}_x64-setup.exe"
+            "release-files/SHA256SUMS.txt"
+          )
+          for file in "${files[@]}"; do
+            [ -f "$file" ] || { echo "missing: $file" >&2; exit 1; }
+          done
+
+          # Every release for this tag, as "<id> <draft>" lines.
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft)\"")
+
+          if [ -z "$existing" ]; then
+            cat > body.md <<EOF
+          How to install: https://github.com/$GH_REPO#install
+
+          These installers are not signed with a paid certificate, so macOS and Windows warn before the first start. The page above says what to press.
+          EOF
+            flags=()
+            if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" --draft --verify-tag \
+              --title "Mechanical Key Sounds $VERSION" \
+              --notes-file body.md \
+              "${flags[@]}" "${files[@]}"
+            echo "Created a draft release for $TAG."
+            exit 0
+          fi
+
+          if [ "$(echo "$existing" | wc -l)" -ne 1 ]; then
+            echo "More than one release exists for $TAG. Nothing is changed; remove the extra one by hand." >&2
+            exit 1
+          fi
+
+          read -r id draft <<< "$existing"
+          if [ "$draft" != "true" ]; then
+            echo "The release for $TAG is already published. It is not changed; release a new version instead." >&2
+            exit 1
+          fi
+
+          # A draft: replace its files, leave its title and notes alone.
+          for asset in $(gh api "repos/$GH_REPO/releases/$id/assets" --paginate --jq '.[].id'); do
+            gh api -X DELETE "repos/$GH_REPO/releases/assets/$asset"
+          done
+          gh release upload "$TAG" "${files[@]}"
+          echo "Replaced the files of the draft release for $TAG."

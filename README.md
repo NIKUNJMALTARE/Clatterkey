@@ -2,7 +2,59 @@
 
 A small desktop app for macOS and Windows that plays the sound of a mechanical keyboard every time you press a key, in any app. Everything is local; there are no accounts.
 
-The app is under construction. So far, while it is running, every key you press in any app plays a sound from one of four bundled sound packs (blue, brown and red switches, and a typewriter) or from a pack you imported. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
+The app notices only that a key went down or came up. It never records, stores or sends which key it was, and it has no network code.
+
+## Install
+
+Download the installer for your system from the [Releases page](https://github.com/NIKUNJMALTARE/Mechanical_Keyboard/releases).
+
+| System | Needs | File |
+|---|---|---|
+| macOS | macOS 12 or later on a Mac with Apple silicon | `Mechanical-Key-Sounds_<version>_aarch64.dmg` |
+| Windows | Windows 10 or later, 64-bit (x64) | `Mechanical-Key-Sounds_<version>_x64-setup.exe` |
+
+A Mac with an Intel processor is not supported.
+
+### macOS
+
+1. Open the `.dmg` and drag **Mechanical Key Sounds** onto the **Applications** shortcut beside it.
+2. Open the app from Applications. The first time, macOS refuses, because the app is not from an identified developer:
+   - **macOS 15 or later:** close the message, open System Settings, Privacy & Security, scroll down to the line about Mechanical Key Sounds and press **Open Anyway**. Confirm with your password or Touch ID.
+   - **macOS 12 to 14:** hold Control and click the app in Applications, choose **Open**, then **Open** again in the message.
+
+   This is needed once. After that the app opens like any other.
+3. The app then asks for the Input Monitoring permission, which it needs to hear key presses. See [The macOS permission](#the-macos-permission) below.
+
+### Windows
+
+1. Run the setup `.exe`. Microsoft Defender SmartScreen shows "Windows protected your PC": press **More info**, then **Run anyway**.
+2. Follow the installer. It installs for your user account only and needs no administrator rights. If the WebView2 runtime is missing (it is part of Windows 11 and of an up-to-date Windows 10), the installer downloads it.
+3. The app starts from the installer's last page or from the Start menu. Typing sounds at once; there is no permission to give.
+
+### Why the warnings
+
+The installers are not signed with a paid developer certificate, so macOS and Windows cannot name who made them and warn before the first start. The source is in this repository, and every release carries a `SHA256SUMS.txt` with the SHA-256 sum of each installer. To compare, run this on the file you downloaded and check the result against the line for that file (upper and lower case do not matter):
+
+- macOS, in Terminal: `shasum -a 256 ~/Downloads/Mechanical-Key-Sounds_<version>_aarch64.dmg`
+- Windows, in PowerShell: `Get-FileHash "$HOME\Downloads\Mechanical-Key-Sounds_<version>_x64-setup.exe"`
+
+## Updating
+
+The app does not look for new versions. To update, download the newer installer and install it over the old one; your settings and imported packs are kept.
+
+- **macOS:** quit the app from the tray, then drag the new app onto Applications and choose Replace. macOS treats each version as a different app, so the first-open step above and the Input Monitoring permission are needed again: in System Settings, Privacy & Security, Input Monitoring, select the old Mechanical Key Sounds entry, remove it with the minus button, then open the new app and grant the permission as on first run.
+- **Windows:** run the new setup `.exe`. If the app is running, the installer asks to close it first.
+
+## Uninstalling
+
+- **Windows:** Settings, Apps, Installed apps, Mechanical Key Sounds, Uninstall. This also removes the Launch at login entry. Your settings and imported packs are kept unless you tick the uninstaller's box to delete the application data; they are in `%APPDATA%\com.mechanicalkeysounds.app\`.
+- **macOS:** turn **Launch at login** off if it was on, quit the app from the tray, and drag it from Applications to the Bin. Two things are left behind and do nothing; delete them if you want them gone:
+  - your settings and imported packs, in `~/Library/Application Support/com.mechanicalkeysounds.app/`;
+  - if Launch at login was still on, the file `~/Library/LaunchAgents/Mechanical Key Sounds.plist`.
+
+## Using the app
+
+While the app is running, every key you press in any app plays a sound from one of four bundled sound packs (blue, brown and red switches, and a typewriter) or from a pack you imported. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
 
 Three more controls tune the sound:
 
@@ -110,4 +162,19 @@ The packs in `src-tauri/resources/packs/` are synthesised from code by the gener
 
 A pack is a folder with a `pack.json` and audio files (WAV, OGG Vorbis, MP3 or FLAC); the full format is in `docs/spec.md`. Test packs live in `src-tauri/tests/fixtures/packs/`.
 
-`scripts/check.sh` formats, lints, type-checks and tests the UI and the core. It rewrites badly formatted files when run locally and only reports them when the `CI` environment variable is set.
+`scripts/check.sh` checks that the version is the same in every file that holds it, then formats, lints, type-checks and tests the UI and the core. It rewrites badly formatted files when run locally and only reports them when the `CI` environment variable is set.
+
+### Releasing
+
+A release is a version tag. Pushing the tag builds both installers in GitHub Actions (`.github/workflows/release.yml`) and attaches them to a draft release.
+
+1. Set the new version in `package.json`, `package-lock.json` (`npm version <X.Y.Z> --no-git-tag-version` does both) and `src-tauri/Cargo.toml`. `scripts/check.sh` fails while they differ. Run `scripts/check.sh` once afterwards and commit `src-tauri/Cargo.lock` with the rest, since cargo writes the new version into it. Merge that through a pull request as usual.
+2. On `main`, tag that commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The workflow first checks that the tag is `v` plus the project's version, and builds nothing if it is not.
+4. It builds the macOS `.dmg` (Apple silicon, ad-hoc signed) and the Windows setup `.exe` (x64), and checks each.
+5. Only if both builds pass, it creates a draft release, "Mechanical Key Sounds X.Y.Z", with the two installers and `SHA256SUMS.txt`. A version with a pre-release part (`v0.2.0-beta.1`) is marked as a pre-release.
+6. Open the draft on the Releases page, write the notes, and press **Publish release**. Nothing is public before that.
+
+Running the tag's workflow run again (Re-run all jobs on that run in the Actions tab) replaces the files of a draft and leaves its notes alone. A published release is never changed: release a new version instead.
+
+To try the build without releasing, start the **release** workflow by hand from the Actions tab (Run workflow, on any branch or tag). A run started by hand never creates or changes a release, even on a tag. It builds both installers and keeps them as artifacts of that run for 7 days, and creates no release. A pull request that changes the workflow, `src-tauri/tauri.conf.json`, `src-tauri/windows/` or `scripts/check-version.mjs` does the same by itself. On your own machine, `npm run tauri build` makes the installer for the system you are on, in `src-tauri/target/release/bundle/`.

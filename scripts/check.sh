@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every check for the project: format, lint, type check, tests.
+# Runs every check for the project: versions, format, lint, type check, tests.
 # Locally the format step rewrites files; when CI is set it only checks.
 set -euo pipefail
 
@@ -25,6 +25,9 @@ step() {
     exit 1
   fi
 }
+
+# The version is stored in more than one file; they must agree.
+step "versions" node scripts/check-version.mjs
 
 if [ -n "${CI:-}" ]; then
   step "format (UI, check only)" npx biome format .

@@ -25,13 +25,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player};
-use mechanical_key_sounds_lib::autostart::{Inert, LoginItem};
-use mechanical_key_sounds_lib::commands::{Core, CoreParts};
-use mechanical_key_sounds_lib::packs::Library;
-use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
-use mechanical_key_sounds_lib::settings;
-use mechanical_key_sounds_lib::startup::choose_pack;
+use clickclak_lib::audio::{Live, OutputStatus, Player};
+use clickclak_lib::autostart::{Inert, LoginItem};
+use clickclak_lib::commands::{Core, CoreParts};
+use clickclak_lib::packs::Library;
+use clickclak_lib::permission::{Permission, PermissionState};
+use clickclak_lib::settings;
+use clickclak_lib::startup::choose_pack;
 
 use crate::common::*;
 

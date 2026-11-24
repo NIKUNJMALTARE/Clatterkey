@@ -224,3 +224,157 @@ fn encode_makes_a_valid_png_for_a_tiny_image() {
         }[..]
     );
 }
+
+// ---- Feature 13: the keycap carries three wave bars (AC22) ----
+
+struct Pixels {
+    size: u32,
+    rgba: Vec<u8>,
+}
+
+impl Pixels {
+    fn of(name: &str) -> Pixels {
+        let icon = icons().into_iter().find(|i| i.name == name).unwrap();
+        Pixels {
+            size: icon.size,
+            rgba: icon.rgba,
+        }
+    }
+
+    fn px(&self, x: u32, y: u32) -> [u8; 4] {
+        let at = ((y * self.size + x) * 4) as usize;
+        self.rgba[at..at + 4].try_into().unwrap()
+    }
+}
+
+fn is_mac(name: &str) -> bool {
+    name.starts_with("mac")
+}
+
+/// Whether a pixel belongs to a bar. macOS: a cut-out, so a transparent
+/// pixel with drawn pixels to its left and to its right on the same row.
+/// Windows: a white or near-white opaque pixel, lighter than the key.
+fn bar_pixels(name: &str, img: &Pixels, y: u32) -> Vec<bool> {
+    let row: Vec<[u8; 4]> = (0..img.size).map(|x| img.px(x, y)).collect();
+    if is_mac(name) {
+        (0..row.len())
+            .map(|x| {
+                row[x][3] < 30
+                    && row[..x].iter().any(|p| p[3] >= 80)
+                    && row[x + 1..].iter().any(|p| p[3] >= 80)
+            })
+            .collect()
+    } else {
+        row.iter()
+            .map(|p| p[3] >= 200 && p[0] >= 200 && p[1] >= 200 && p[2] >= 200)
+            .collect()
+    }
+}
+
+/// The row through the middle of the mark: the middle of the rows that
+/// hold any bar pixel.
+fn mark_row(name: &str, img: &Pixels) -> u32 {
+    let rows: Vec<u32> = (0..img.size)
+        .filter(|&y| bar_pixels(name, img, y).contains(&true))
+        .collect();
+    assert!(!rows.is_empty(), "{name} shows no bars");
+    (rows[0] + rows[rows.len() - 1]) / 2
+}
+
+fn runs(flags: &[bool]) -> usize {
+    let mut count = 0;
+    let mut previous = false;
+    for &f in flags {
+        if f && !previous {
+            count += 1;
+        }
+        previous = f;
+    }
+    count
+}
+
+#[test]
+fn ac22_each_icon_shows_three_bars_along_the_row_through_the_middle_of_the_mark() {
+    for name in NAMES {
+        let img = Pixels::of(name);
+        let y = mark_row(name, &img);
+        let flags = bar_pixels(name, &img, y);
+        assert_eq!(runs(&flags), 3, "{name}, row {y}: {flags:?}");
+    }
+}
+
+#[test]
+fn ac22_the_bars_are_separated_by_at_least_one_pixel() {
+    for name in NAMES {
+        let img = Pixels::of(name);
+        let flags = bar_pixels(name, &img, mark_row(name, &img));
+        // Counting runs already needs a gap; this also guards against a
+        // single smeared bar being split by one stray pixel.
+        let widths: Vec<usize> = flags
+            .split(|f| !f)
+            .map(<[bool]>::len)
+            .filter(|n| *n > 0)
+            .collect();
+        assert_eq!(widths.len(), 3, "{name}");
+        assert!(widths.iter().all(|w| *w >= 1), "{name}");
+    }
+}
+
+#[test]
+fn ac22_the_mac_pair_differs_in_shape_and_not_only_in_strength() {
+    let on = Pixels::of("mac.png");
+    let off = Pixels::of("mac-off.png");
+    let drawn_differs = on
+        .rgba
+        .chunks(4)
+        .zip(off.rgba.chunks(4))
+        .any(|(a, b)| (a[3] > 0) != (b[3] > 0));
+    let ratios: Vec<f64> = on
+        .rgba
+        .chunks(4)
+        .zip(off.rgba.chunks(4))
+        .filter(|(a, _)| a[3] > 0)
+        .map(|(a, b)| f64::from(b[3]) / f64::from(a[3]))
+        .collect();
+    let lo = ratios.iter().cloned().fold(f64::MAX, f64::min);
+    let hi = ratios.iter().cloned().fold(f64::MIN, f64::max);
+    assert!(
+        drawn_differs || hi - lo > 0.2,
+        "off is only a uniformly fainter copy of on (ratios {lo:.2} to {hi:.2})"
+    );
+}
+
+#[test]
+fn ac22_the_win_pair_differs_in_colour_and_the_blue_one_is_the_accent() {
+    let on = Pixels::of("win.png");
+    let off = Pixels::of("win-off.png");
+    let near =
+        |p: [u8; 4], want: [u8; 3]| (0..3).all(|c| p[c].abs_diff(want[c]) <= 2) && p[3] == 255;
+    assert!(
+        on.rgba
+            .chunks(4)
+            .any(|p| near(p.try_into().unwrap(), [0x25, 0x63, 0xeb])),
+        "win.png has the accent blue key"
+    );
+    assert!(
+        !off.rgba
+            .chunks(4)
+            .any(|p| near(p.try_into().unwrap(), [0x25, 0x63, 0xeb])),
+        "win-off.png is grey"
+    );
+}
+
+#[test]
+fn ac22_the_mac_icons_are_transparent_at_the_corners_and_not_a_solid_square() {
+    for name in ["mac.png", "mac-off.png"] {
+        let img = Pixels::of(name);
+        let last = img.size - 1;
+        for (x, y) in [(0, 0), (last, 0), (0, last), (last, last)] {
+            assert_eq!(img.px(x, y)[3], 0, "{name} corner ({x}, {y})");
+        }
+        assert!(
+            img.rgba.chunks(4).any(|p| p[3] == 0 && p[0] == 0),
+            "{name} has transparent pixels"
+        );
+    }
+}

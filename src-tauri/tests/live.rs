@@ -8,10 +8,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use mechanical_key_sounds_lib::audio::{Live, Player, Sample, SoundSet};
-use mechanical_key_sounds_lib::keys::KeyCode;
-use mechanical_key_sounds_lib::packs::load;
-use mechanical_key_sounds_lib::startup::{Wait, key_consumer, run_live};
+use clickclak_lib::audio::{Live, Player, Sample, SoundSet};
+use clickclak_lib::keys::KeyCode;
+use clickclak_lib::packs::load;
+use clickclak_lib::startup::{Wait, key_consumer, run_live};
 use serde_json::json;
 
 mod common;

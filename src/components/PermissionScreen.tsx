@@ -61,7 +61,7 @@ export function PermissionScreen({
 				className="section-title"
 				tabIndex={-1}
 			>
-				Let Mechanical Key Sounds hear your keys
+				Let ClickClak hear your keys
 			</h2>
 			{/*
 			 * One status for both forms of the screen, always in the page, so
@@ -73,7 +73,7 @@ export function PermissionScreen({
 				className={restart ? "permission-status" : "permission-progress"}
 			>
 				{restart
-					? "Permission granted. Restart Mechanical Key Sounds to finish."
+					? "Permission granted. Restart ClickClak to finish."
 					: asked === "waiting"
 						? "Waiting for permission…"
 						: ""}
@@ -98,7 +98,7 @@ export function PermissionScreen({
 					</p>
 					<ol className="permission-steps">
 						<li>Click Open System Settings.</li>
-						<li>Turn on Mechanical Key Sounds in the Input Monitoring list.</li>
+						<li>Turn on ClickClak in the Input Monitoring list.</li>
 						<li>Come back here. The sound starts by itself.</li>
 					</ol>
 					<div className="permission-actions">

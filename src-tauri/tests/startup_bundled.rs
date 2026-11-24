@@ -20,11 +20,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mechanical_key_sounds_lib::audio::{SoundSet, builtin_click};
-use mechanical_key_sounds_lib::keys::{KeyCode, KeyGroup, KeyKind};
-use mechanical_key_sounds_lib::packs;
-use mechanical_key_sounds_lib::settings;
-use mechanical_key_sounds_lib::startup::{Wait, choose_sounds, is_pack_id, run_sounds};
+use clickclak_lib::audio::{SoundSet, builtin_click};
+use clickclak_lib::keys::{KeyCode, KeyGroup, KeyKind};
+use clickclak_lib::packs;
+use clickclak_lib::settings;
+use clickclak_lib::startup::{Wait, choose_sounds, is_pack_id, run_sounds};
 
 mod common;
 use common::*;

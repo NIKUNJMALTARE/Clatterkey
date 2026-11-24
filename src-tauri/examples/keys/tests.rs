@@ -5,7 +5,7 @@ use std::io::Write;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 
-use mechanical_key_sounds_lib::keys::{KeyCode, KeyEvent, KeyKind, KeyListenError};
+use clickclak_lib::keys::{KeyCode, KeyEvent, KeyKind, KeyListenError};
 
 type Wait = Box<dyn FnOnce() -> Result<(), KeyListenError>>;
 type Consumer = Box<dyn FnMut(KeyEvent) + Send>;

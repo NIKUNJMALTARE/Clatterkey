@@ -10,14 +10,14 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use mechanical_key_sounds_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
-use mechanical_key_sounds_lib::autostart::Inert;
-use mechanical_key_sounds_lib::commands::{Core, CoreParts};
-use mechanical_key_sounds_lib::keys::KeyCode;
-use mechanical_key_sounds_lib::packs::Library;
-use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
-use mechanical_key_sounds_lib::settings::{self, LoadProblem, Settings};
-use mechanical_key_sounds_lib::startup::choose_pack;
+use clickclak_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
+use clickclak_lib::autostart::Inert;
+use clickclak_lib::commands::{Core, CoreParts};
+use clickclak_lib::keys::KeyCode;
+use clickclak_lib::packs::Library;
+use clickclak_lib::permission::{Permission, PermissionState};
+use clickclak_lib::settings::{self, LoadProblem, Settings};
+use clickclak_lib::startup::choose_pack;
 use serde_json::{Value, json};
 
 mod common;
@@ -73,7 +73,7 @@ fn ac14_the_bundled_packs_are_listed_sorted_by_name_with_author_and_licence() {
     assert_eq!(ids, ["blue", "brown", "red", "typewriter"]);
     for row in rows {
         assert_eq!(row["license"], "CC0-1.0");
-        assert_eq!(row["author"], "Mechanical Key Sounds contributors");
+        assert_eq!(row["author"], "ClickClak contributors");
     }
 }
 
@@ -753,8 +753,8 @@ fn ac9_neither_waits_on_a_permission_check_that_is_blocked() {
     use std::sync::{Condvar, Mutex};
     use std::time::Duration;
 
-    use mechanical_key_sounds_lib::keys::KeyListenError;
-    use mechanical_key_sounds_lib::permission::{Keys, Os, Watcher};
+    use clickclak_lib::keys::KeyListenError;
+    use clickclak_lib::permission::{Keys, Os, Watcher};
 
     struct Gate {
         entered: Mutex<bool>,

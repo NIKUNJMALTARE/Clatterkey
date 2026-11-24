@@ -8,15 +8,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
-use mechanical_key_sounds_lib::audio::Player;
-use mechanical_key_sounds_lib::audio::{Live, OutputStatus};
-use mechanical_key_sounds_lib::autostart::Inert;
-use mechanical_key_sounds_lib::commands::{
-    AudioStatus, Core, CoreGate, plain_core, publish_core, start_core,
-};
-use mechanical_key_sounds_lib::keys::KeyCode;
-use mechanical_key_sounds_lib::packs::Library;
-use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
+use clickclak_lib::audio::Player;
+use clickclak_lib::audio::{Live, OutputStatus};
+use clickclak_lib::autostart::Inert;
+use clickclak_lib::commands::{AudioStatus, Core, CoreGate, plain_core, publish_core, start_core};
+use clickclak_lib::keys::KeyCode;
+use clickclak_lib::packs::Library;
+use clickclak_lib::permission::{Permission, PermissionState};
 use serde_json::json;
 
 mod common;
@@ -364,9 +362,9 @@ fn publish_core_uses_the_audio_reader_it_is_given() {
 
 mod before_publish {
     use super::*;
-    use mechanical_key_sounds_lib::commands::publish_core_after;
-    use mechanical_key_sounds_lib::keys::KeyListenError;
-    use mechanical_key_sounds_lib::permission::{Keys, Os, Watcher, initial_state};
+    use clickclak_lib::commands::publish_core_after;
+    use clickclak_lib::keys::KeyListenError;
+    use clickclak_lib::permission::{Keys, Os, Watcher, initial_state};
 
     struct GrantingOs;
     impl Os for GrantingOs {

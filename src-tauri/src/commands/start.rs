@@ -28,6 +28,30 @@ pub fn start_core(
     login_item: Arc<dyn LoginItem>,
     err: &ErrorOut,
 ) -> (Core, Arc<Live>) {
+    start_core_after(
+        library,
+        settings_path,
+        audio,
+        permission,
+        login_item,
+        err,
+        |_| {},
+    )
+}
+
+/// `start_core`, with a step between reading the settings and comparing
+/// `launch_at_login` with the system: `before_compare` is given the
+/// setting as read. The hand-over from the app's old name uses it to move
+/// the login registration over before the comparison looks for it.
+pub fn start_core_after(
+    library: Library,
+    settings_path: Option<PathBuf>,
+    audio: AudioStatus,
+    permission: Arc<Permission>,
+    login_item: Arc<dyn LoginItem>,
+    err: &ErrorOut,
+    before_compare: impl FnOnce(bool),
+) -> (Core, Arc<Live>) {
     let mut loaded = match &settings_path {
         Some(path) => settings::load_or_create_report(path, err),
         None => {
@@ -41,6 +65,7 @@ pub fn start_core(
             }
         }
     };
+    before_compare(loaded.settings.launch_at_login);
     // The system's login registration and the setting are put in step
     // here, before the window can read the setting.
     let launch = autostart::reconcile(loaded.settings.launch_at_login, &*login_item, err);

@@ -19,7 +19,7 @@ use crate::keys::permission::SystemAccess;
 use crate::permission::{self, Os, Permission};
 
 pub use core::{AudioStatus, Core, CoreParts, Listener};
-pub use start::{plain_core, publish_core, publish_core_after, start_core};
+pub use start::{plain_core, publish_core, publish_core_after, start_core, start_core_after};
 
 /// Holds the `Core` once start-up has made it. A command that arrives
 /// earlier waits; the window shows its loading state meanwhile.

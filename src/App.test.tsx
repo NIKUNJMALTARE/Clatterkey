@@ -67,7 +67,7 @@ describe("AC1: the window loads with the saved values", () => {
 			expect(names[i]).toContain(n);
 		});
 		expect(
-			screen.getAllByText("Mechanical Key Sounds contributors · CC0-1.0"),
+			screen.getAllByText("ClickClak contributors · CC0-1.0"),
 		).toHaveLength(4);
 		expect(radio(/Red switches/)).toBeChecked();
 		expect(radio(/Blue switches/)).not.toBeChecked();
@@ -108,7 +108,7 @@ describe("AC1: the window loads with the saved values", () => {
 		healthyCore();
 		await loaded();
 		expect(
-			screen.getByRole("heading", { name: "Mechanical Key Sounds" }),
+			screen.getByRole("heading", { name: "ClickClak" }),
 		).toBeInTheDocument();
 	});
 });
@@ -122,7 +122,7 @@ describe("AC2: loading and the first read failing", () => {
 		mocked.audioStatus.mockResolvedValue("playing");
 		render(<App />);
 		expect(
-			screen.getByRole("heading", { name: "Mechanical Key Sounds" }),
+			screen.getByRole("heading", { name: "ClickClak" }),
 		).toBeInTheDocument();
 		expect(screen.queryByRole("switch")).not.toBeInTheDocument();
 		expect(screen.queryByRole("slider")).not.toBeInTheDocument();

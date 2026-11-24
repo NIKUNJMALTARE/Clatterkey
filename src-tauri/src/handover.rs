@@ -1,13 +1,15 @@
-//! The hand-over from the app's earlier name, Mechanical Key Sounds.
+//! The hand-over from the app's earlier names, ClickClak and Mechanical
+//! Key Sounds.
 //!
 //! To the system the renamed app is a new one: it has a new folder and a
 //! new login registration. At start-up, before the settings are read, what
-//! the old app left is carried over: its settings file and imported packs
-//! are copied (the old folder is only ever read), and its login
-//! registration is removed so that the two never start side by side.
+//! an earlier app left is carried over: the settings file and imported
+//! packs of the newest earlier name that has any are copied (the earlier
+//! folders are only ever read), and the login registrations of all the
+//! earlier names are removed so that no two ever start side by side.
 //!
 //! No Tauri in here, so it is tested with temporary folders and a fake
-//! registration. The old identifier and the old name live in this module
+//! registration. The earlier identifiers and names live in this module
 //! alone.
 
 use std::fs;
@@ -18,10 +20,27 @@ use crate::autostart::LoginItem;
 use crate::packs::rename as rename_patiently;
 use crate::{ErrorOut, write_line};
 
-/// The old app's identifier: the name of its settings folder.
-pub const OLD_IDENTIFIER: &str = "com.mechanicalkeysounds.app";
-/// The old app's name: the name of its login registration.
-pub const OLD_APP_NAME: &str = "Mechanical Key Sounds";
+/// A name the app had before the present one.
+pub struct Earlier {
+    /// The identifier: the name of its settings folder.
+    pub identifier: &'static str,
+    /// The app name: the name of its login registration.
+    pub app_name: &'static str,
+}
+
+/// The earlier names, newest first. The folders and the registrations
+/// given to `copy_files` and `login` are built from this list, in this
+/// order, so that a position means the same name in both.
+pub const EARLIER: [Earlier; 2] = [
+    Earlier {
+        identifier: "com.clickclak.app",
+        app_name: "ClickClak",
+    },
+    Earlier {
+        identifier: "com.mechanicalkeysounds.app",
+        app_name: "Mechanical Key Sounds",
+    },
+];
 
 const SETTINGS: &str = "settings.json";
 const PACKS: &str = "packs";
@@ -33,40 +52,50 @@ const TEMPORARY: &str = ".handover-tmp";
 pub enum Copied {
     /// There was nothing to copy, or the new folder is already in use.
     Nothing,
-    /// The old settings, the old packs, or both are now in the new folder.
-    Done,
+    /// The settings, the packs, or both of the earlier folder at this
+    /// position in the list given are now in the new folder.
+    Done(usize),
     /// The copy failed and left nothing behind; one line was written.
     Failed,
 }
 
-/// The old app's folder: beside the new one, named by the old identifier.
-pub fn old_folder(new_folder: &Path) -> Option<PathBuf> {
-    new_folder
-        .parent()
-        .map(|parent| parent.join(OLD_IDENTIFIER))
+/// The earlier apps' folders: beside the new one, named by the earlier
+/// identifiers, in the order of `EARLIER`.
+pub fn earlier_folders(new_folder: &Path) -> Vec<PathBuf> {
+    match new_folder.parent() {
+        Some(parent) => EARLIER
+            .iter()
+            .map(|earlier| parent.join(earlier.identifier))
+            .collect(),
+        None => Vec::new(),
+    }
 }
 
-/// Copies the old settings file and the old packs folder into the new
-/// folder, if the new folder has neither yet.
+/// Copies the settings file and the packs folder of one earlier folder
+/// into the new folder, if the new folder has neither yet.
 ///
-/// Once the new folder holds a settings file or a packs folder the old one
-/// is never looked at again, so nothing saved under the new name is ever
-/// overwritten. The copy is put together in a temporary folder and renamed
-/// into place, the settings file last, so a settings file in the new
-/// folder always means a complete copy. On a failure nothing of the
-/// attempt is left and one `migrate:` line is written.
-pub fn copy_files(old: &Path, new: &Path, err: &ErrorOut) -> Copied {
+/// The source is the first folder in the list that holds a settings file
+/// or a packs folder; the others are not read and nothing is merged, since
+/// a newer name's folder already holds what it carried over from an older
+/// one. Once the new folder holds a settings file or a packs folder no
+/// earlier one is looked at again, so nothing saved under the new name is
+/// ever overwritten. The copy is put together in a temporary folder and
+/// renamed into place, the settings file last, so a settings file in the
+/// new folder always means a complete copy. On a failure nothing of the
+/// attempt is left, one `migrate:` line is written, and no later folder in
+/// the list is tried in its place.
+pub fn copy_files(earlier: &[PathBuf], new: &Path, err: &ErrorOut) -> Copied {
     if new.join(SETTINGS).exists() || new.join(PACKS).exists() {
         return Copied::Nothing;
     }
-    if !old.is_dir() {
+    let source = earlier.iter().enumerate().find(|(_, folder)| {
+        folder.is_dir() && (folder.join(SETTINGS).is_file() || folder.join(PACKS).is_dir())
+    });
+    let Some((position, old)) = source else {
         return Copied::Nothing;
-    }
+    };
     let (settings, packs) = (old.join(SETTINGS), old.join(PACKS));
     let (has_settings, has_packs) = (settings.is_file(), packs.is_dir());
-    if !has_settings && !has_packs {
-        return Copied::Nothing;
-    }
 
     let made_new = !new.exists();
     let temporary = new.join(TEMPORARY);
@@ -103,7 +132,7 @@ pub fn copy_files(old: &Path, new: &Path, err: &ErrorOut) -> Copied {
     // not a failed copy, and the next start-up clears it.
     let _ = fs::remove_dir_all(&temporary);
     match result {
-        Ok(()) => Copied::Done,
+        Ok(()) => Copied::Done(position),
         Err((path, error)) => {
             // The settings file is renamed last, so only the packs can
             // have reached their place.
@@ -148,46 +177,53 @@ fn copy_folder(from: &Path, to: &Path) -> Result<(), (PathBuf, io::Error)> {
     Ok(())
 }
 
-/// Takes the old app's login registration out, and puts the new app's in
-/// its place if the settings just copied have Launch at login on and the
-/// old registration was in force.
+/// Takes the earlier apps' login registrations out, and puts the new
+/// app's in their place if the settings just copied have Launch at login
+/// on and the registration of the name they were copied from was in force.
 ///
-/// The old one is removed at every start, whatever was copied: the old
-/// app, if still installed, may have been opened and registered again,
-/// and both would then start at login and every key would sound twice.
-/// A build that does not register (`registers` false, a development
-/// build) touches neither. A failure writes one `migrate:` line and the
-/// start goes on; the usual start-up comparison then decides the setting.
+/// The registrations are in the order of the folders given to
+/// `copy_files`. All of them are removed at every start, whatever was
+/// copied: an earlier app, if still installed, may have been opened and
+/// registered again, and both would then start at login and every key
+/// would sound twice. A build that does not register (`registers` false, a
+/// development build) touches none. A failure writes one `migrate:` line
+/// and the rest goes on; the usual start-up comparison then decides the
+/// setting.
 pub fn login(
     copied: Copied,
     setting_on: bool,
     registers: bool,
-    old: &dyn LoginItem,
+    earlier: &[&dyn LoginItem],
     new: &dyn LoginItem,
     err: &ErrorOut,
 ) {
     if !registers {
         return;
     }
-    let was_in_force = match old.is_enabled() {
-        Ok(in_force) => in_force,
-        Err(error) => {
+    let mut source_was_in_force = false;
+    for (position, item) in earlier.iter().enumerate() {
+        let was_in_force = match item.is_enabled() {
+            Ok(in_force) => in_force,
+            Err(error) => {
+                write_line(
+                    err,
+                    &format!("migrate: could not read an earlier login item: {error}"),
+                );
+                false
+            }
+        };
+        if matches!(copied, Copied::Done(source) if source == position) {
+            source_was_in_force = was_in_force;
+        }
+        if let Err(error) = item.disable() {
             write_line(
                 err,
-                &format!("migrate: could not read the old login item: {error}"),
+                &format!("migrate: could not remove an earlier login item: {error}"),
             );
-            false
         }
-    };
-    if let Err(error) = old.disable() {
-        write_line(
-            err,
-            &format!("migrate: could not remove the old login item: {error}"),
-        );
     }
-    if matches!(copied, Copied::Done)
-        && setting_on
-        && was_in_force
+    if setting_on
+        && source_was_in_force
         && let Err(error) = new.enable()
     {
         write_line(

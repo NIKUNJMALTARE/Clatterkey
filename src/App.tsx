@@ -32,7 +32,7 @@ function noticesFor(
 		notices.push({
 			id: "permission",
 			tone: "warning",
-			text: "ClickClak cannot hear your keys yet. It needs the Input Monitoring permission.",
+			text: "Clatterkey cannot hear your keys yet. It needs the Input Monitoring permission.",
 			action: { label: "Set up", onAction: setUpPermission },
 		});
 	}
@@ -241,7 +241,7 @@ export function App() {
 	const view = useSettings();
 	return (
 		<main className="window">
-			<h1 className="title">ClickClak</h1>
+			<h1 className="title">Clatterkey</h1>
 			{view.phase === "ready" && <Loaded view={view} />}
 			{view.phase === "error" && (
 				<div className="load-error">

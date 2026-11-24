@@ -17,14 +17,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use clickclak_lib::audio::OutputStatus;
-use clickclak_lib::autostart::{Inert, LoginItem};
-use clickclak_lib::commands::{AudioStatus, Core, CoreParts, start_core};
-use clickclak_lib::keys::KeyCode;
-use clickclak_lib::packs::Library;
-use clickclak_lib::permission::{Permission, PermissionState};
-use clickclak_lib::settings::{self, Settings};
-use clickclak_lib::startup::choose_pack;
+use clatterkey_lib::audio::OutputStatus;
+use clatterkey_lib::autostart::{Inert, LoginItem};
+use clatterkey_lib::commands::{AudioStatus, Core, CoreParts, start_core};
+use clatterkey_lib::keys::KeyCode;
+use clatterkey_lib::packs::Library;
+use clatterkey_lib::permission::{Permission, PermissionState};
+use clatterkey_lib::settings::{self, Settings};
+use clatterkey_lib::startup::choose_pack;
 use serde_json::{Value, json};
 
 mod common;
@@ -358,7 +358,7 @@ fn ac13_a_failed_save_keeps_the_change_and_the_registration() {
         },
         playing: chosen.playing,
         fell_back: chosen.fell_back,
-        live: Arc::new(clickclak_lib::audio::Live::new(chosen.sounds)),
+        live: Arc::new(clatterkey_lib::audio::Live::new(chosen.sounds)),
         permission: perm(),
         audio: playing(),
         login_item: item.clone(),

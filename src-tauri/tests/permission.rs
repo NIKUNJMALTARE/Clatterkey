@@ -19,14 +19,14 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use clickclak_lib::audio::{Live, Sink};
-use clickclak_lib::keys::{KeyCode, KeyListenError};
-use clickclak_lib::packs::load;
-use clickclak_lib::permission::{
+use clatterkey_lib::audio::{Live, Sink};
+use clatterkey_lib::keys::{KeyCode, KeyListenError};
+use clatterkey_lib::packs::load;
+use clatterkey_lib::permission::{
     CHECK_WHILE_GRANTED, CHECK_WHILE_MISSING, Keys, Os, Permission, PermissionState, Watcher,
     initial_state, open_settings,
 };
-use clickclak_lib::startup::{Consumer, LiveKeys, Running};
+use clatterkey_lib::startup::{Consumer, LiveKeys, Running};
 
 mod common;
 use common::*;

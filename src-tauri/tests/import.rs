@@ -2,7 +2,7 @@
 //! half, AC25, AC27), on temporary folders and the fixture packs. No Tauri.
 //!
 //! Interfaces assumed from the feature 10 plan, all reached through
-//! `clickclak_lib::packs` (the plan names the files, not the
+//! `clatterkey_lib::packs` (the plan names the files, not the
 //! re-exports):
 //!
 //! ```ignore
@@ -23,10 +23,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use clickclak_lib::audio::{DecodeError, decode};
-use clickclak_lib::keys::{KeyGroup, KeyKind};
-use clickclak_lib::packs::{ImportError, Library, assign, import, import_with, load, pack_id_for};
-use clickclak_lib::startup::is_pack_id;
+use clatterkey_lib::audio::{DecodeError, decode};
+use clatterkey_lib::keys::{KeyGroup, KeyKind};
+use clatterkey_lib::packs::{ImportError, Library, assign, import, import_with, load, pack_id_for};
+use clatterkey_lib::startup::is_pack_id;
 use serde_json::Value;
 
 mod common;
@@ -1066,7 +1066,7 @@ fn ac19_a_bad_copy_over_an_existing_pack_leaves_it_unchanged() {
 
 #[test]
 fn ac12_what_is_returned_is_the_stored_copy_not_the_source() {
-    use clickclak_lib::keys::{KeyGroup, KeyKind};
+    use clatterkey_lib::keys::{KeyGroup, KeyKind};
     let env = env();
     let (_t, src) = source_with_lengths("my-clicks", 33, None);
     let done = import_with(

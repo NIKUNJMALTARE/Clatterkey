@@ -1,5 +1,5 @@
 [package]
-name = "clickclak"
+name = "clatterkey"
 version = "0.1.0"
 description = "Plays mechanical keyboard sounds on every key press"
 edition = "2024"
@@ -7,7 +7,7 @@ rust-version = "1.96"
 publish = false
 
 [lib]
-name = "clickclak_lib"
+name = "clatterkey_lib"
 
 # Dev command that prints key events: `npm run keys`. Not part of the app.
 [[example]]
@@ -47,8 +47,8 @@ tauri-plugin-dialog = "2.8"
 # is used.
 tauri-plugin-autostart = "2.7"
 # The library the autostart plugin is built on, at the plugin's version.
-# Used directly only to reach the login registration the app left under
-# its old name (`handover`), which the plugin cannot name.
+# Used directly only to reach the login registrations the app left under
+# its earlier names (`handover`), which the plugin cannot name.
 auto-launch = "0.6"
 # Audio output and mixer, and decoders for the formats a sound pack may use.
 rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "vorbis", "mp3", "flac"] }
@@ -63,7 +63,7 @@ objc2-core-graphics = { version = "0.3.2", default-features = false, features = 
 
 [target.'cfg(target_os = "windows")'.dependencies]
 rdev = { git = "https://github.com/Narsil/rdev", rev = "b7e201bf80be7b9632207366f277d29fe732b9c1" }
-# Removes the old name's `StartupApproved` value, which `auto-launch`
+# Removes an earlier name's `StartupApproved` value, which `auto-launch`
 # leaves behind. The version `auto-launch` itself uses.
 windows-registry = "0.6"
 

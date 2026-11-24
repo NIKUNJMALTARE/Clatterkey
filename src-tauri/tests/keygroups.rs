@@ -2,7 +2,7 @@
 //! The plan puts these beside the code in `keys/group.rs`; they are written
 //! here, through the public interface, because the file does not exist yet.
 
-use clickclak_lib::keys::{KeyCode, KeyGroup, group_of};
+use clatterkey_lib::keys::{KeyCode, KeyGroup, group_of};
 
 mod common;
 use common::MODIFIERS;

@@ -19,10 +19,10 @@ use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use clickclak_lib::audio::{
+use clatterkey_lib::audio::{
     GAP, HOLD, Live, PHRASE, Player, Previewer, Sample, Sink, SinkSlot, SoundSet, play_phrase,
 };
-use clickclak_lib::keys::{KeyCode, KeyGroup};
+use clatterkey_lib::keys::{KeyCode, KeyGroup};
 
 mod common;
 use common::*;

@@ -1,5 +1,5 @@
 // @vitest-environment node
-// Feature 12 AC5 (as changed by feature 13 AC18) and feature 13 AC19: the
+// Feature 12 AC5 (as changed by feature 14 AC19) and feature 14 AC20: the
 // bundle configuration and the package names, read from the real files.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -43,26 +43,26 @@ describe("AC5 bundle configuration", () => {
 	});
 });
 
-describe("AC18 the name and identifier", () => {
-	it("AC18 the product name is ClickClak", () => {
-		expect(conf.productName).toBe("ClickClak");
+describe("AC19 the name and identifier", () => {
+	it("AC19 the product name is Clatterkey", () => {
+		expect(conf.productName).toBe("Clatterkey");
 	});
 
-	it("AC18 the identifier is com.clickclak.app", () => {
-		expect(conf.identifier).toBe("com.clickclak.app");
+	it("AC19 the identifier is com.clatterkey.app", () => {
+		expect(conf.identifier).toBe("com.clatterkey.app");
 	});
 
-	it("AC18 the window title is ClickClak", () => {
-		expect(conf.app.windows[0].title).toBe("ClickClak");
+	it("AC19 the window title is Clatterkey", () => {
+		expect(conf.app.windows[0].title).toBe("Clatterkey");
 	});
 
-	it("AC18 the document title in index.html is ClickClak (AC1)", () => {
+	it("AC19 the document title in index.html is Clatterkey (AC1)", () => {
 		const html = readFileSync(join(repoRoot, "index.html"), "utf8");
-		expect(html).toMatch(/<title>ClickClak<\/title>/);
+		expect(html).toMatch(/<title>Clatterkey<\/title>/);
 	});
 });
 
-describe("AC19 the package names", () => {
+describe("AC20 the package names", () => {
 	const cargo = readFileSync(join(repoRoot, "src-tauri/Cargo.toml"), "utf8");
 	const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
 	const lock = JSON.parse(
@@ -78,26 +78,26 @@ describe("AC19 the package names", () => {
 		return new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, "m").exec(body)?.[1];
 	}
 
-	it("AC19 the Cargo package is clickclak", () => {
-		expect(tomlValue("package", "name")).toBe("clickclak");
+	it("AC20 the Cargo package is clatterkey", () => {
+		expect(tomlValue("package", "name")).toBe("clatterkey");
 	});
 
-	it("AC19 the library is clickclak_lib", () => {
-		expect(tomlValue("lib", "name")).toBe("clickclak_lib");
+	it("AC20 the library is clatterkey_lib", () => {
+		expect(tomlValue("lib", "name")).toBe("clatterkey_lib");
 	});
 
-	it("AC19 the npm package is clickclak, in both lock file name fields", () => {
-		expect(pkg.name).toBe("clickclak");
-		expect(lock.name).toBe("clickclak");
-		expect(lock.packages[""].name).toBe("clickclak");
+	it("AC20 the npm package is clatterkey, in both lock file name fields", () => {
+		expect(pkg.name).toBe("clatterkey");
+		expect(lock.name).toBe("clatterkey");
+		expect(lock.packages[""].name).toBe("clatterkey");
 	});
 
-	it("AC19 main.rs starts the renamed library", () => {
+	it("AC20 main.rs starts the renamed library", () => {
 		const main = readFileSync(join(repoRoot, "src-tauri/src/main.rs"), "utf8");
-		expect(main).toContain("clickclak_lib::run()");
+		expect(main).toContain("clatterkey_lib::run()");
 	});
 
-	it("AC19 the version stays 0.1.0 everywhere", () => {
+	it("AC20 the version stays 0.1.0 everywhere", () => {
 		expect(tomlValue("package", "version")).toBe("0.1.0");
 		expect(pkg.version).toBe("0.1.0");
 		expect(conf.version ?? "0.1.0").toBe("0.1.0");

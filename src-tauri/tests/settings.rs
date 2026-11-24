@@ -20,7 +20,7 @@
 use std::fs;
 use std::path::Path;
 
-use clickclak_lib::settings::{DEFAULT_PACK, ReadError, Settings, load_or_create, read, save};
+use clatterkey_lib::settings::{DEFAULT_PACK, ReadError, Settings, load_or_create, read, save};
 
 mod common;
 use common::*;

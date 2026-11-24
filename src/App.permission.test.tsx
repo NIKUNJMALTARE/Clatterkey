@@ -31,13 +31,13 @@ vi.mock("./api", () => ({
 
 const mocked = vi.mocked(api);
 
-const HEADING = "Let ClickClak hear your keys";
+const HEADING = "Let Clatterkey hear your keys";
 const WAITING = "Waiting for permission…";
 const COULD_NOT_OPEN =
 	"System Settings could not be opened. Open it yourself: Privacy & Security, then Input Monitoring.";
-const RESTART_TEXT = "Permission granted. Restart ClickClak to finish.";
+const RESTART_TEXT = "Permission granted. Restart Clatterkey to finish.";
 const WARNING =
-	"ClickClak cannot hear your keys yet. It needs the Input Monitoring permission.";
+	"Clatterkey cannot hear your keys yet. It needs the Input Monitoring permission.";
 
 beforeEach(() => {
 	vi.resetAllMocks();
@@ -99,7 +99,7 @@ describe("AC11: the permission screen", () => {
 		const steps = within(screen.getByRole("list")).getAllByRole("listitem");
 		expect(steps.map((s) => s.textContent)).toEqual([
 			"Click Open System Settings.",
-			"Turn on ClickClak in the Input Monitoring list.",
+			"Turn on Clatterkey in the Input Monitoring list.",
 			"Come back here. The sound starts by itself.",
 		]);
 		expect(openButton()).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("AC11: the permission screen", () => {
 		healthyCore(state({ permission: "needed" }));
 		render(<App />);
 		expect(
-			screen.getByRole("heading", { name: "ClickClak", level: 1 }),
+			screen.getByRole("heading", { name: "Clatterkey", level: 1 }),
 		).toBeInTheDocument();
 		await screen.findByRole("heading", { name: HEADING });
 		expect(sound()).toBeNull();

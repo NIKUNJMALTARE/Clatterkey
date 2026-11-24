@@ -20,14 +20,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
-use clickclak_lib::audio::{Live, OutputStatus, Player, builtin_click};
-use clickclak_lib::autostart::Inert;
-use clickclak_lib::commands::{Core, CoreParts, start_core};
-use clickclak_lib::keys::KeyCode;
-use clickclak_lib::packs::Library;
-use clickclak_lib::permission::{Permission, PermissionState};
-use clickclak_lib::settings;
-use clickclak_lib::startup::choose_pack_in;
+use clatterkey_lib::audio::{Live, OutputStatus, Player, builtin_click};
+use clatterkey_lib::autostart::Inert;
+use clatterkey_lib::commands::{Core, CoreParts, start_core};
+use clatterkey_lib::keys::KeyCode;
+use clatterkey_lib::packs::Library;
+use clatterkey_lib::permission::{Permission, PermissionState};
+use clatterkey_lib::settings;
+use clatterkey_lib::startup::choose_pack_in;
 use serde_json::{Value, json};
 
 mod common;

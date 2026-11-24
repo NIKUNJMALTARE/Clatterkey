@@ -41,7 +41,7 @@ pub fn start_core(
 
 /// `start_core`, with a step between reading the settings and comparing
 /// `launch_at_login` with the system: `before_compare` is given the
-/// setting as read. The hand-over from the app's old name uses it to move
+/// setting as read. The hand-over from the app's earlier names uses it to move
 /// the login registration over before the comparison looks for it.
 pub fn start_core_after(
     library: Library,

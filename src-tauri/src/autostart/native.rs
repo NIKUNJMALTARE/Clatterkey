@@ -48,7 +48,7 @@ pub fn old_login_item(name: &str) -> Arc<dyn LoginItem> {
         return Arc::new(Inert);
     }
     // The path is what `enable` would register, and `enable` is never
-    // asked of an old name; it only has to be there.
+    // asked of an earlier name; it only has to be there.
     let path = std::env::current_exe()
         .map(|path| path.display().to_string())
         .unwrap_or_default();
@@ -73,7 +73,7 @@ struct OldLoginItem {
 }
 
 impl LoginItem for OldLoginItem {
-    /// Never made again: an old name is only ever taken out.
+    /// Never made again: an earlier name is only ever taken out.
     fn enable(&self) -> Result<(), String> {
         Err("a registration under an old name is not made".to_string())
     }

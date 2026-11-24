@@ -33,7 +33,7 @@ pub fn write_line(out: &Mutex<dyn Write + Send>, line: &str) {
 }
 
 /// The product name shown in the window title and the UI.
-pub const APP_NAME: &str = "ClickClak";
+pub const APP_NAME: &str = "Clatterkey";
 
 /// The event that tells the settings window of a change made anywhere,
 /// with the `set_settings` result.
@@ -255,19 +255,19 @@ fn start_clicks(
                 // The pack is loaded before the listener starts, so no key
                 // plays from a half-loaded pack.
                 //
-                // What the app left under its old name is carried over
-                // first, and the order matters: the old settings and packs
-                // are copied before the settings are read (a first read
-                // would write the defaults and the copy would never be
-                // made); then, with the setting known, the old login
-                // registration is taken out and the new one put in its
-                // place; only then is the setting compared with the system.
+                // What the app left under an earlier name is carried over
+                // first, and the order matters: the earlier settings and
+                // packs are copied before the settings are read (a first
+                // read would write the defaults and the copy would never
+                // be made); then, with the setting known, the earlier
+                // login registrations are taken out and the new one put in
+                // their place; only then is the setting compared with the
+                // system.
                 let build = |audio| {
                     let copied = match settings_path.as_deref().and_then(Path::parent) {
-                        Some(folder) => match handover::old_folder(folder) {
-                            Some(old) => handover::copy_files(&old, folder, &err),
-                            None => handover::Copied::Nothing,
-                        },
+                        Some(folder) => {
+                            handover::copy_files(&handover::earlier_folders(folder), folder, &err)
+                        }
                         None => handover::Copied::Nothing,
                     };
                     let new_item = Arc::clone(&login_item);
@@ -279,12 +279,19 @@ fn start_clicks(
                         login_item,
                         &err,
                         |setting_on| {
-                            let old = autostart::native::old_login_item(handover::OLD_APP_NAME);
+                            // In the order of the folders above, so that
+                            // the copy's position names the same app here.
+                            let earlier: Vec<_> = handover::EARLIER
+                                .iter()
+                                .map(|earlier| autostart::native::old_login_item(earlier.app_name))
+                                .collect();
+                            let earlier: Vec<&dyn autostart::LoginItem> =
+                                earlier.iter().map(|item| &**item).collect();
                             handover::login(
                                 copied,
                                 setting_on,
                                 autostart::native::registers(),
-                                &*old,
+                                &earlier,
                                 &*new_item,
                                 &err,
                             );

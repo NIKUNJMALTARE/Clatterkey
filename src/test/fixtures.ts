@@ -13,7 +13,7 @@ export const PACKS: PackInfo[] = [
 	{
 		id: "blue",
 		name: "Blue switches",
-		author: "ClickClak contributors",
+		author: "Clatterkey contributors",
 		license: "CC0-1.0",
 		has_key_up: true,
 		imported: false,
@@ -21,7 +21,7 @@ export const PACKS: PackInfo[] = [
 	{
 		id: "brown",
 		name: "Brown switches",
-		author: "ClickClak contributors",
+		author: "Clatterkey contributors",
 		license: "CC0-1.0",
 		has_key_up: true,
 		imported: false,
@@ -29,7 +29,7 @@ export const PACKS: PackInfo[] = [
 	{
 		id: "red",
 		name: "Red switches",
-		author: "ClickClak contributors",
+		author: "Clatterkey contributors",
 		license: "CC0-1.0",
 		has_key_up: true,
 		imported: false,
@@ -37,7 +37,7 @@ export const PACKS: PackInfo[] = [
 	{
 		id: "typewriter",
 		name: "Typewriter",
-		author: "ClickClak contributors",
+		author: "Clatterkey contributors",
 		license: "CC0-1.0",
 		has_key_up: false,
 		imported: false,

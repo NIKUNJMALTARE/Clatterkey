@@ -274,7 +274,7 @@ describe("AC7: the permission screen", () => {
 			healthyCore(state({ permission }));
 			render(<App />);
 			await screen.findByRole("heading", {
-				name: "Let ClickClak hear your keys",
+				name: "Let Clatterkey hear your keys",
 			});
 			expect(
 				screen.queryByRole("switch", { name: "Launch at login" }),

@@ -116,44 +116,47 @@ describe("AC6 check.yml is unchanged in what it checks", () => {
 	});
 });
 
-describe("AC23 the release carries the new name", () => {
-	it("AC23 names the disk image ClickClak_<version>_aarch64.dmg", () => {
-		expect(releaseText).toMatch(/ClickClak_\$\{VERSION\}_aarch64\.dmg/);
+describe("AC22 the release carries the new name", () => {
+	it("AC22 names the disk image Clatterkey_<version>_aarch64.dmg", () => {
+		expect(releaseText).toMatch(/Clatterkey_\$\{VERSION\}_aarch64\.dmg/);
 	});
 
-	it("AC23 names the installer ClickClak_<version>_x64-setup.exe", () => {
+	it("AC22 names the installer Clatterkey_<version>_x64-setup.exe", () => {
 		expect(releaseText).toMatch(
-			/ClickClak_(\$\{VERSION\}|\$\(\$env:VERSION\))_x64-setup\.exe/,
+			/Clatterkey_(\$\{VERSION\}|\$\(\$env:VERSION\))_x64-setup\.exe/,
 		);
 	});
 
-	it("AC23 checks the disk image for ClickClak.app", () => {
-		expect(releaseText).toContain("ClickClak.app");
-		expect(releaseText).toMatch(/\$mount\/ClickClak\.app/);
+	it("AC22 checks the disk image for Clatterkey.app", () => {
+		expect(releaseText).toContain("Clatterkey.app");
+		expect(releaseText).toMatch(/\$mount\/Clatterkey\.app/);
 	});
 
-	it("AC23 titles the release ClickClak X.Y.Z", () => {
-		expect(releaseText).toMatch(/--title\s+"ClickClak \$VERSION"/);
+	it("AC22 titles the release Clatterkey X.Y.Z", () => {
+		expect(releaseText).toMatch(/--title\s+"Clatterkey \$VERSION"/);
 	});
 
-	it("AC23 never uses the hyphenated old file names", () => {
+	it("AC22 never uses the hyphenated old file names", () => {
 		expect(releaseText).not.toMatch(
 			new RegExp(["Mechanical", "Key", "Sounds"].join("-"), "i"),
 		);
 	});
 
-	it("AC23 the old name appears nowhere in the workflow, in any spelling", () => {
+	it("AC22 neither earlier name appears anywhere in the workflow, in any spelling", () => {
 		const spellings = [
 			new RegExp(["mechanical", "key", "sounds"].join("[ _-]"), "i"),
 			new RegExp(["mechanical", "key", "sounds"].join(""), "i"),
+			new RegExp(["click", "clak"].join(""), "i"),
 		];
 		for (const spelling of spellings) {
 			expect(releaseText).not.toMatch(spelling);
 		}
 	});
 
-	it("AC23 the sums file lists the new installer names", () => {
-		expect(releaseText).toMatch(/dmg="ClickClak_\$\{VERSION\}_aarch64\.dmg"/);
-		expect(releaseText).toMatch(/exe="ClickClak_\$\{VERSION\}_x64-setup\.exe"/);
+	it("AC22 the sums file lists the new installer names", () => {
+		expect(releaseText).toMatch(/dmg="Clatterkey_\$\{VERSION\}_aarch64\.dmg"/);
+		expect(releaseText).toMatch(
+			/exe="Clatterkey_\$\{VERSION\}_x64-setup\.exe"/,
+		);
 	});
 });

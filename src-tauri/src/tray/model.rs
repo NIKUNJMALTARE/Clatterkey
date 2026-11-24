@@ -39,7 +39,7 @@ impl TrayView {
             Self {
                 checked: false,
                 icon: TrayIconKind::Off,
-                tooltip: "ClickClak (sound off)",
+                tooltip: "Clatterkey (sound off)",
             }
         }
     }
@@ -82,7 +82,7 @@ pub const MENU: [MenuEntry; 4] = [
     MenuEntry::Separator,
     MenuEntry::Item {
         id: "quit",
-        label: "Quit ClickClak",
+        label: "Quit Clatterkey",
         action: TrayAction::Quit,
     },
 ];

@@ -10,10 +10,10 @@ use std::fs;
 use std::sync::Arc;
 use std::time::Instant;
 
-use clickclak_lib::audio::{Player, builtin_click};
-use clickclak_lib::keys::{KeyCode, KeyKind};
-use clickclak_lib::packs::load;
-use clickclak_lib::startup::key_consumer;
+use clatterkey_lib::audio::{Player, builtin_click};
+use clatterkey_lib::keys::{KeyCode, KeyKind};
+use clatterkey_lib::packs::load;
+use clatterkey_lib::startup::key_consumer;
 
 mod common;
 use common::*;

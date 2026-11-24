@@ -11,8 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use clickclak_lib::audio::{Sample, decode};
-use clickclak_lib::packs;
+use clatterkey_lib::audio::{Sample, decode};
+use clatterkey_lib::packs;
 use serde_json::Value;
 
 const IDS: [&str; 4] = ["blue", "brown", "red", "typewriter"];
@@ -225,7 +225,7 @@ fn ac1_each_pack_loads_with_its_name_licence_and_author() {
         assert_eq!(pack.license, "CC0-1.0", "pack {id}");
         assert_eq!(
             pack.author.as_deref(),
-            Some("ClickClak contributors"),
+            Some("Clatterkey contributors"),
             "pack {id}"
         );
     }
@@ -235,6 +235,10 @@ fn ac1_each_pack_loads_with_its_name_licence_and_author() {
 fn ac1_a_licence_file_sits_beside_the_packs() {
     let text = fs::read_to_string(packs_dir().join("LICENSE.md")).expect("LICENSE.md");
     assert!(text.contains("CC0"), "licence file should name CC0");
+    assert!(
+        text.contains("Clatterkey contributors"),
+        "AC5: the licence file names the Clatterkey contributors"
+    );
 }
 
 // AC2

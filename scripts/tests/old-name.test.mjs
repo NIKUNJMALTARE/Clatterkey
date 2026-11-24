@@ -1,7 +1,7 @@
 // @vitest-environment node
-// Feature 13 AC25: the repository, outside docs/features/ and the
+// Feature 14 AC24: the repository, outside docs/features/ and the
 // hand-over's own code, tests and README section, holds no occurrence of
-// the old name in any of its spellings.
+// either earlier name in any of its spellings.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,6 +14,7 @@ const needles = [
 	new RegExp(OLD_NAME),
 	new RegExp(["mechanical", "key", "sounds"].join("[ _-]"), "i"),
 	new RegExp(["mechanical", "key", "sounds"].join(""), "i"),
+	new RegExp(["click", "clak"].join(""), "i"),
 ];
 
 // Allowed to name the old app: the hand-over module and its tests, and the
@@ -51,14 +52,14 @@ function withoutMoveSection(text) {
 	return [...lines.slice(0, start), ...lines.slice(end)].join("\n");
 }
 
-describe("AC25 the old name is gone", () => {
-	it("AC25 the search covers the repository's tracked files", () => {
+describe("AC24 the old name is gone", () => {
+	it("AC24 the search covers the repository's tracked files", () => {
 		expect(tracked.length).toBeGreaterThan(50);
 		expect(tracked).toContain("README.md");
 		expect(tracked).toContain("src-tauri/tauri.conf.json");
 	});
 
-	it("AC25 no tracked file outside the allowed places names the old app", () => {
+	it("AC24 no tracked file outside the allowed places names the old app", () => {
 		const found = [];
 		for (const file of tracked) {
 			if (ALLOWED_FILES.has(file)) continue;
@@ -79,7 +80,7 @@ describe("AC25 the old name is gone", () => {
 		expect(found).toEqual([]);
 	});
 
-	it("AC25 the file names themselves are clean", () => {
+	it("AC24 the file names themselves are clean", () => {
 		const found = tracked.filter(
 			(file) =>
 				!file.startsWith("docs/features/") && needles.some((n) => n.test(file)),

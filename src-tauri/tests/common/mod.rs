@@ -11,8 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use clickclak_lib::audio::{Sample, Sink};
-use clickclak_lib::keys::{KeyCode, KeyEvent, KeyKind};
+use clatterkey_lib::audio::{Sample, Sink};
+use clatterkey_lib::keys::{KeyCode, KeyEvent, KeyKind};
 
 /// `src-tauri/tests/fixtures`, made by `scripts/make-test-fixtures.sh`.
 pub fn fixtures() -> PathBuf {

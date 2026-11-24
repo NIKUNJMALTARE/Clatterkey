@@ -24,9 +24,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use clickclak_lib::audio::{SoundSet, builtin_click};
-use clickclak_lib::keys::{KeyCode, KeyGroup, KeyKind, KeyListenError};
-use clickclak_lib::startup::{Wait, choose_sounds, run_clicks, run_sounds};
+use clatterkey_lib::audio::{SoundSet, builtin_click};
+use clatterkey_lib::keys::{KeyCode, KeyGroup, KeyKind, KeyListenError};
+use clatterkey_lib::startup::{Wait, choose_sounds, run_clicks, run_sounds};
 
 mod common;
 use common::*;

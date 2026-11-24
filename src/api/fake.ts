@@ -31,7 +31,7 @@ declare global {
 /** Only the fake contains this text; the build is checked for its absence. */
 export const FAKE_MARKER = "mks-dev-fake-core";
 
-const AUTHOR = "ClickClak contributors";
+const AUTHOR = "Clatterkey contributors";
 
 const pack = (id: string, name: string, has_key_up = true): PackInfo => ({
 	id,

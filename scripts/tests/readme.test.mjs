@@ -69,109 +69,126 @@ describe("AC7 README", () => {
 	});
 });
 
-// ---- Feature 13 AC24: the new name, and the section about the old one ----
+// ---- Feature 14 AC23: the new name, and the section about the earlier ones ----
 
-// The old name and its identifier, spelled from parts so that this file
+// The earlier names and identifiers, spelled from parts so that this file
 // itself holds no occurrence of them (see old-name.test.mjs).
-const OLD_NAME = ["Mechanical", "Key", "Sounds"].join(" ");
-const OLD_ID = ["com", ["mechanical", "key", "sounds"].join(""), "app"].join(
+const CLICK = ["Click", "Clak"].join("");
+const MKS = ["Mechanical", "Key", "Sounds"].join(" ");
+const CLICK_ID = ["com", CLICK.toLowerCase(), "app"].join(".");
+const MKS_ID = ["com", ["mechanical", "key", "sounds"].join(""), "app"].join(
 	".",
 );
-const NEW_ID = "com.clickclak.app";
-const MOVE = section(`coming from ${OLD_NAME}`.toLowerCase());
+const NEW_ID = "com.clatterkey.app";
+const MOVE = section("coming from an earlier name");
 
-describe("AC24 README under the new name", () => {
-	it("AC24 is titled ClickClak", () => {
-		expect(lines[0]).toBe("# ClickClak");
+describe("AC23 README under the new name", () => {
+	it("AC23 is titled Clatterkey", () => {
+		expect(lines[0]).toBe("# Clatterkey");
 	});
 
-	it("AC24 gives the new installer names", () => {
-		expect(readme).toContain("ClickClak_<version>_aarch64.dmg");
-		expect(readme).toContain("ClickClak_<version>_x64-setup.exe");
+	it("AC23 gives the new installer names", () => {
+		expect(readme).toContain("Clatterkey_<version>_aarch64.dmg");
+		expect(readme).toContain("Clatterkey_<version>_x64-setup.exe");
 	});
 
-	it("AC24 gives the new settings folders for both systems", () => {
+	it("AC23 gives the new settings folders for both systems", () => {
 		expect(readme).toContain(
 			`~/Library/Application Support/${NEW_ID}/settings.json`,
 		);
 		expect(readme).toContain(`%APPDATA%\\${NEW_ID}\\settings.json`);
 	});
 
-	it("AC24 gives the launch agent file name ClickClak.plist", () => {
-		expect(readme).toContain("ClickClak.plist");
+	it("AC23 gives the launch agent file name Clatterkey.plist", () => {
+		expect(readme).toContain("Clatterkey.plist");
 	});
 
-	it("AC24 gives the tccutil identifier", () => {
+	it("AC23 gives the tccutil identifier", () => {
 		expect(readme).toContain(`tccutil reset ListenEvent ${NEW_ID}`);
 	});
 
-	it("AC24 titles the release ClickClak X.Y.Z", () => {
-		expect(readme).toContain('"ClickClak X.Y.Z"');
+	it("AC23 titles the release Clatterkey X.Y.Z", () => {
+		expect(readme).toContain('"Clatterkey X.Y.Z"');
 	});
 
-	it("AC24 says Quit ClickClak for the tray item", () => {
-		expect(readme).toContain("**Quit ClickClak**");
+	it("AC23 says Quit Clatterkey for the tray item", () => {
+		expect(readme).toContain("**Quit Clatterkey**");
 	});
 
-	it("AC24 has no hyphenated old installer name", () => {
-		expect(readme).not.toMatch(
-			new RegExp(["Mechanical", "Key", "Sounds"].join("-"), "i"),
+	it("AC23 has one section about earlier names, and the old heading is gone", () => {
+		expect(MOVE).toBeDefined();
+		expect(readme).not.toMatch(new RegExp(`^#+\\s+Coming from ${MKS}`, "mi"));
+		const headings = lines.filter(
+			(l) => headingLevel(l) > 0 && /coming from/i.test(l),
 		);
+		expect(headings).toHaveLength(1);
 	});
 
-	it("AC24 names the old name only inside the section about it", () => {
+	it("AC23 names the earlier names only inside that section", () => {
 		const outside = MOVE === undefined ? readme : readme.replace(MOVE, "");
 		for (const spelling of [
 			new RegExp(["mechanical", "key", "sounds"].join("[ _-]"), "i"),
 			new RegExp(["mechanical", "key", "sounds"].join(""), "i"),
+			new RegExp(CLICK, "i"),
 		]) {
 			expect(outside).not.toMatch(spelling);
 		}
 	});
 });
 
-describe(`AC24 the section "Coming from ${OLD_NAME}"`, () => {
+describe('AC23 the section "Coming from an earlier name"', () => {
 	const move = MOVE ?? "";
 
-	it("AC24 exists", () => {
+	it("AC23 exists", () => {
 		expect(MOVE).toBeDefined();
 	});
 
-	it("AC24 says settings and packs are carried over at the first start", () => {
+	it("AC23 names both earlier names and both of their identifiers", () => {
+		expect(move).toContain(CLICK);
+		expect(move).toContain(MKS);
+		expect(move).toContain(CLICK_ID);
+		expect(move).toContain(MKS_ID);
+	});
+
+	it("AC23 says settings and packs are carried over at the first start, from the newer name first", () => {
 		expect(move).toMatch(/settings/i);
 		expect(move).toMatch(/packs/i);
 		expect(move).toMatch(/carried over|copied/i);
 		expect(move).toMatch(/first (start|launch|time)/i);
+		expect(move).toMatch(/otherwise/i);
+		expect(move.indexOf(CLICK)).toBeLessThan(move.indexOf(MKS));
 	});
 
-	it("AC24 says the macOS permission is asked again", () => {
+	it("AC23 says the macOS permission is asked again", () => {
 		expect(move).toMatch(/macOS/);
 		expect(move).toMatch(/Input Monitoring|permission/);
 		expect(move).toMatch(/again/i);
 	});
 
-	it("AC24 says to remove the old app, and how on each system", () => {
+	it("AC23 says to remove the earlier app, and how on each system", () => {
 		expect(move).toMatch(/remove|uninstall/i);
-		expect(move).toContain(`${OLD_NAME}.app`);
+		expect(move).toContain(`${CLICK}.app`);
+		expect(move).toContain(`${MKS}.app`);
 		expect(move).toMatch(/Bin/);
 		expect(move).toContain("Installed apps");
 	});
 
-	it("AC24 says the old folder can be deleted afterwards", () => {
+	it("AC23 says the earlier folders can be deleted afterwards", () => {
 		expect(move).toMatch(/delete/i);
-		expect(move).toContain(OLD_ID);
 	});
 
-	it("AC24 says how to copy the folder by hand, with both folders per system", () => {
+	it("AC23 says how to copy a folder by hand, with a row per earlier folder and system", () => {
 		expect(move).toMatch(/by hand|manually|copy/i);
 		expect(move).toContain("settings.json");
-		expect(move).toContain(`~/Library/Application Support/${OLD_ID}`);
+		for (const id of [CLICK_ID, MKS_ID]) {
+			expect(move).toContain(`~/Library/Application Support/${id}`);
+			expect(move).toContain(`%APPDATA%\\${id}`);
+		}
 		expect(move).toContain(`~/Library/Application Support/${NEW_ID}`);
-		expect(move).toContain(`%APPDATA%\\${OLD_ID}`);
 		expect(move).toContain(`%APPDATA%\\${NEW_ID}`);
 	});
 
-	it("AC24 warns that both apps at once sound every key twice", () => {
+	it("AC23 warns that both apps at once sound every key twice", () => {
 		expect(move).toMatch(/twice/i);
 	});
 });

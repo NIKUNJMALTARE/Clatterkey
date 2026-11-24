@@ -10,14 +10,14 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use clickclak_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
-use clickclak_lib::autostart::Inert;
-use clickclak_lib::commands::{Core, CoreParts};
-use clickclak_lib::keys::KeyCode;
-use clickclak_lib::packs::Library;
-use clickclak_lib::permission::{Permission, PermissionState};
-use clickclak_lib::settings::{self, LoadProblem, Settings};
-use clickclak_lib::startup::choose_pack;
+use clatterkey_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
+use clatterkey_lib::autostart::Inert;
+use clatterkey_lib::commands::{Core, CoreParts};
+use clatterkey_lib::keys::KeyCode;
+use clatterkey_lib::packs::Library;
+use clatterkey_lib::permission::{Permission, PermissionState};
+use clatterkey_lib::settings::{self, LoadProblem, Settings};
+use clatterkey_lib::startup::choose_pack;
 use serde_json::{Value, json};
 
 mod common;
@@ -73,7 +73,7 @@ fn ac14_the_bundled_packs_are_listed_sorted_by_name_with_author_and_licence() {
     assert_eq!(ids, ["blue", "brown", "red", "typewriter"]);
     for row in rows {
         assert_eq!(row["license"], "CC0-1.0");
-        assert_eq!(row["author"], "ClickClak contributors");
+        assert_eq!(row["author"], "Clatterkey contributors");
     }
 }
 
@@ -753,8 +753,8 @@ fn ac9_neither_waits_on_a_permission_check_that_is_blocked() {
     use std::sync::{Condvar, Mutex};
     use std::time::Duration;
 
-    use clickclak_lib::keys::KeyListenError;
-    use clickclak_lib::permission::{Keys, Os, Watcher};
+    use clatterkey_lib::keys::KeyListenError;
+    use clatterkey_lib::permission::{Keys, Os, Watcher};
 
     struct Gate {
         entered: Mutex<bool>,

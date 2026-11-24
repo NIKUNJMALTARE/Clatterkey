@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use clickclak_lib::audio::{
+use clatterkey_lib::audio::{
     AudioError, Backend, OutputStatus, Player, Sample, Sink, SinkSlot, Supervisor, builtin_click,
 };
-use clickclak_lib::keys::{KeyCode, KeyEvent, KeyKind};
+use clatterkey_lib::keys::{KeyCode, KeyEvent, KeyKind};
 
 /// A sink that records every sample it is asked to play.
 #[derive(Default)]

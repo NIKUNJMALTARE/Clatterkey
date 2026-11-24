@@ -18,11 +18,11 @@
 
 use std::ffi::OsString;
 
-use clickclak_lib::autostart::{
+use clatterkey_lib::autostart::{
     HIDDEN_ARG, Inert, LoginItem, is_login_start, reconcile, show_at_start, show_on_second_launch,
     without_hidden,
 };
-use clickclak_lib::permission::PermissionState;
+use clatterkey_lib::permission::PermissionState;
 
 mod common;
 use common::*;

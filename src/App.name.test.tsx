@@ -1,6 +1,6 @@
-// Feature 13 (the app name), the window's half: AC1 to AC3. The core is
+// Feature 14 (rename to Clatterkey), the window's half: AC1 to AC3. The core is
 // mocked at `src/api`. The window states already covered by the other App
-// tests are rendered here and none of them may show the old name.
+// tests are rendered here and none of them may show either earlier name.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -21,10 +21,13 @@ vi.mock("./api", () => ({
 	removePack: vi.fn(),
 }));
 
-// Spelled from parts so that no file of the repository holds the old name
+// Spelled from parts so that no file of the repository holds an earlier name
 // (see scripts/tests/old-name.test.mjs).
 const OLD_NAME = ["Mechanical", "Key", "Sounds"].join(" ");
-const OLD_PATTERN = new RegExp(OLD_NAME.split(" ").join("\\s*"), "i");
+const OLD_PATTERN = new RegExp(
+	`${OLD_NAME.split(" ").join("\\s*")}|${["Click", "Clak"].join("")}`,
+	"i",
+);
 
 beforeEach(() => {
 	vi.resetAllMocks();
@@ -33,12 +36,12 @@ beforeEach(() => {
 const NEEDED = state({ permission: "needed" });
 
 describe("AC1: the heading", () => {
-	it("AC1: the settings view's heading reads ClickClak", async () => {
+	it("AC1: the settings view's heading reads Clatterkey", async () => {
 		healthyCore();
 		render(<App />);
 		await screen.findByRole("switch", { name: "Sound" });
 		expect(
-			screen.getByRole("heading", { name: "ClickClak", level: 1 }),
+			screen.getByRole("heading", { name: "Clatterkey", level: 1 }),
 		).toBeInTheDocument();
 	});
 
@@ -46,45 +49,45 @@ describe("AC1: the heading", () => {
 		healthyCore();
 		render(<App />);
 		expect(
-			screen.getByRole("heading", { name: "ClickClak", level: 1 }),
+			screen.getByRole("heading", { name: "Clatterkey", level: 1 }),
 		).toBeInTheDocument();
 	});
 });
 
-describe("AC2: the permission screen names ClickClak", () => {
+describe("AC2: the permission screen names Clatterkey", () => {
 	it("AC2: needed shows the heading and the step", async () => {
 		healthyCore(NEEDED);
 		render(<App />);
 		expect(
 			await screen.findByRole("heading", {
-				name: "Let ClickClak hear your keys",
+				name: "Let Clatterkey hear your keys",
 			}),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText("Turn on ClickClak in the Input Monitoring list."),
+			screen.getByText("Turn on Clatterkey in the Input Monitoring list."),
 		).toBeInTheDocument();
 	});
 
-	it("AC2: restart_needed says Permission granted. Restart ClickClak to finish.", async () => {
+	it("AC2: restart_needed says Permission granted. Restart Clatterkey to finish.", async () => {
 		healthyCore(state({ permission: "restart_needed" }));
 		render(<App />);
 		expect(
 			await screen.findByText(
-				"Permission granted. Restart ClickClak to finish.",
+				"Permission granted. Restart Clatterkey to finish.",
 			),
 		).toBeInTheDocument();
 	});
 
-	it("AC2: Set up later leaves the reminder naming ClickClak", async () => {
+	it("AC2: Set up later leaves the reminder naming Clatterkey", async () => {
 		healthyCore(NEEDED);
 		render(<App />);
 		await screen.findByRole("heading", {
-			name: "Let ClickClak hear your keys",
+			name: "Let Clatterkey hear your keys",
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Set up later" }));
 		expect(
 			await screen.findByText(
-				"ClickClak cannot hear your keys yet. It needs the Input Monitoring permission.",
+				"Clatterkey cannot hear your keys yet. It needs the Input Monitoring permission.",
 			),
 		).toBeInTheDocument();
 	});
@@ -120,7 +123,7 @@ describe("AC3: the old name appears nowhere in the window", () => {
 	it("AC3: the settings view with the bundled packs and their authors", async () => {
 		await shown({});
 		expect(
-			screen.getAllByText(/ClickClak contributors/).length,
+			screen.getAllByText(/Clatterkey contributors/).length,
 		).toBeGreaterThan(0);
 		expectNoOldName();
 	});

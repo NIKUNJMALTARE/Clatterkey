@@ -137,8 +137,8 @@ jobs:
           hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount" >/dev/null
           trap 'hdiutil detach "$mount" >/dev/null || true' EXIT
 
-          app="$mount/ClickClak.app"
-          [ -d "$app" ] || fail "the disk image does not hold ClickClak.app"
+          app="$mount/Clatterkey.app"
+          [ -d "$app" ] || fail "the disk image does not hold Clatterkey.app"
           [ -L "$mount/Applications" ] || fail "the disk image has no Applications shortcut"
 
           plist="$app/Contents/Info.plist"
@@ -164,7 +164,7 @@ jobs:
           done
 
           mkdir -p release-files
-          cp "$dmg" "release-files/ClickClak_${VERSION}_aarch64.dmg"
+          cp "$dmg" "release-files/Clatterkey_${VERSION}_aarch64.dmg"
           echo "Verified: arm64, ad-hoc signed, version $built, four packs."
 
       - name: Verify the installer (Windows)
@@ -193,7 +193,7 @@ jobs:
           }
 
           New-Item -ItemType Directory -Force release-files | Out-Null
-          Copy-Item $installer.FullName "release-files/ClickClak_$($env:VERSION)_x64-setup.exe"
+          Copy-Item $installer.FullName "release-files/Clatterkey_$($env:VERSION)_x64-setup.exe"
           Write-Host "Verified: one x64 setup .exe, version $built, no .msi."
 
       # Named without spaces: GitHub would turn spaces into dots, and the
@@ -233,8 +233,8 @@ jobs:
         working-directory: release-files
         run: |
           set -euo pipefail
-          dmg="ClickClak_${VERSION}_aarch64.dmg"
-          exe="ClickClak_${VERSION}_x64-setup.exe"
+          dmg="Clatterkey_${VERSION}_aarch64.dmg"
+          exe="Clatterkey_${VERSION}_x64-setup.exe"
           ls -l
           [ "$(ls | wc -l)" -eq 2 ] || { echo "expected exactly the two installers" >&2; exit 1; }
           sha256sum "$dmg" "$exe" > SHA256SUMS.txt
@@ -276,8 +276,8 @@ jobs:
         run: |
           set -euo pipefail
           files=(
-            "release-files/ClickClak_${VERSION}_aarch64.dmg"
-            "release-files/ClickClak_${VERSION}_x64-setup.exe"
+            "release-files/Clatterkey_${VERSION}_aarch64.dmg"
+            "release-files/Clatterkey_${VERSION}_x64-setup.exe"
             "release-files/SHA256SUMS.txt"
           )
           for file in "${files[@]}"; do
@@ -297,7 +297,7 @@ jobs:
             flags=()
             if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
             gh release create "$TAG" --draft --verify-tag \
-              --title "ClickClak $VERSION" \
+              --title "Clatterkey $VERSION" \
               --notes-file body.md \
               "${flags[@]}" "${files[@]}"
             echo "Created a draft release for $TAG."

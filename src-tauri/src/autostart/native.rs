@@ -18,10 +18,9 @@ use super::{HIDDEN_ARG, Inert, LoginItem};
 
 /// The plugin, set to pass `HIDDEN_ARG` to the app at login.
 pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    tauri_plugin_autostart::Builder::new()
-        .args([HIDDEN_ARG])
-        .macos_launcher(MacosLauncher::LaunchAgent)
-        .build()
+    // `init`, not the builder: the builder's launcher setting exists on
+    // macOS only, and this must compile everywhere.
+    tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG]))
 }
 
 /// Whether this build registers itself. A development build never does.

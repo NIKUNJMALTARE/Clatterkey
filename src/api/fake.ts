@@ -92,6 +92,8 @@ const STATES = [
 	"imported",
 	"import-error",
 	"remove-error",
+	"launch-at-login",
+	"autostart-error",
 ] as const;
 
 type FakeState = (typeof STATES)[number];
@@ -123,7 +125,7 @@ export function createFakeCore(search: string): CoreApi {
 		volume: 0.8,
 		pitch_variation: 0,
 		key_up_sounds: true,
-		launch_at_login: false,
+		launch_at_login: state === "launch-at-login",
 	};
 	let playing: string | null = state === "no-packs" ? null : first;
 	let revision = 0;
@@ -199,6 +201,10 @@ export function createFakeCore(search: string): CoreApi {
 			await later(null);
 			if (patch.pack_id !== undefined && state === "pack-load-error") {
 				throw `pack "${patch.pack_id}": keys.default[0] "down/default-1.wav": file not found`;
+			}
+			if (patch.launch_at_login !== undefined && state === "autostart-error") {
+				const word = patch.launch_at_login ? "on" : "off";
+				throw `settings change: launch at login could not be turned ${word}: Operation not permitted (os error 1)`;
 			}
 			return applied(patch, state === "save-error");
 		},

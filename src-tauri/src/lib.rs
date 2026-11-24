@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod autostart;
 pub mod commands;
 pub mod keys;
 pub mod packs;
@@ -40,15 +41,25 @@ const SETTINGS_CHANGED: &str = "settings-changed";
 /// Builds the Tauri app and runs it until the user quits. Closing the
 /// settings window only hides it: the app lives on in the tray.
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Registered first, as the plugin asks. A second launch starts
         // nothing: the running app shows its settings window.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            tray::native::show_settings(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if autostart::show_on_second_launch(&args) {
+                tray::native::show_settings(app);
+            }
         }))
         // The folder picker for importing a pack. Only the core opens it:
         // the window is given no permission to.
-        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_dialog::init());
+    // The system's login registration. A development build has none, so
+    // that a build folder is never left in the user's login items.
+    let builder = if autostart::native::registers() {
+        builder.plugin(autostart::native::plugin())
+    } else {
+        builder
+    };
+    let app = builder
         .setup(|app| {
             // Bundled packs are copied into the app's resource folder
             // (`bundle.resources` in `tauri.conf.json`).
@@ -69,6 +80,27 @@ pub fn run() {
             let gate = Arc::new(CoreGate::new());
             app.manage(Arc::clone(&gate));
             start_tray(app.handle(), Arc::clone(&gate));
+            // The window is made hidden. A start by hand shows it now; a
+            // start made by the login registration leaves it hidden until
+            // the permission is known, and shows it only if it is missing
+            // or there is no tray icon to reach the app by.
+            let login_start = autostart::is_login_start(&std::env::args_os().collect::<Vec<_>>());
+            let decide: StartDecision = if login_start {
+                #[cfg(target_os = "macos")]
+                let _ = app
+                    .handle()
+                    .set_activation_policy(tauri::ActivationPolicy::Accessory);
+                let handle = app.handle().clone();
+                Box::new(move |permission| {
+                    if autostart::show_at_start(true, permission, tray_present(&handle)) {
+                        tray::native::show_settings(&handle);
+                    }
+                })
+            } else {
+                tray::native::show_settings(app.handle());
+                Box::new(|_| {})
+            };
+            let login_item = autostart::native::login_item(app.handle());
             // On macOS the listener starts only once Input Monitoring is
             // granted; this is where the window reads how that stands.
             let permission = Arc::new(Permission::new(permission::initial_state(&SystemAccess)));
@@ -78,7 +110,15 @@ pub fn run() {
             app.manage(Arc::new(audio::Previewer::new(
                 Arc::clone(&slot) as Arc<dyn audio::Sink>
             )));
-            app.manage(start_clicks(library, settings_path, gate, permission, slot));
+            app.manage(start_clicks(
+                library,
+                settings_path,
+                gate,
+                permission,
+                slot,
+                login_item,
+                decide,
+            ));
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -119,6 +159,10 @@ pub fn run() {
         _ => {}
     });
 }
+
+/// Told the permission state once start-up knows it; shows the settings
+/// window after a login start if it has to be shown. Called exactly once.
+type StartDecision = Box<dyn FnOnce(PermissionState) + Send>;
 
 fn tray_present(app: &AppHandle) -> bool {
     app.try_state::<TrayPresent>().is_some_and(|tray| tray.0)
@@ -182,8 +226,19 @@ fn start_clicks(
     gate: Arc<CoreGate>,
     permission: Arc<Permission>,
     slot: Arc<audio::SinkSlot>,
+    login_item: Arc<dyn autostart::LoginItem>,
+    decide: StartDecision,
 ) -> audio::OutputHandle {
     let output = audio::spawn_output(Arc::clone(&slot));
+    // Taken by whichever path gets to decide: the start-up thread, or
+    // this one if that thread cannot be made.
+    let decide = Arc::new(Mutex::new(Some(decide)));
+    let decided = |state: PermissionState, decide: &Mutex<Option<StartDecision>>| {
+        let taken = decide.lock().unwrap_or_else(|p| p.into_inner()).take();
+        if let Some(decide) = taken {
+            decide(state);
+        }
+    };
 
     // Starting the listener can block briefly, and waiting on it blocks for
     // the life of the process. If the thread cannot be made, there are no
@@ -191,6 +246,7 @@ fn start_clicks(
     let spawned = {
         let (gate, output) = (Arc::clone(&gate), output.clone());
         let permission = Arc::clone(&permission);
+        let decide = Arc::clone(&decide);
         std::thread::Builder::new()
             .name("startup".into())
             .spawn(move || {
@@ -203,6 +259,7 @@ fn start_clicks(
                         settings_path,
                         audio,
                         Arc::clone(&permission),
+                        login_item,
                         &err,
                     )
                 };
@@ -236,11 +293,15 @@ fn start_clicks(
                     );
                     match watcher {
                         Some(watcher) => {
+                            decided(permission.state(), &decide);
                             std::thread::sleep(permission::CHECK_WHILE_MISSING);
                             watcher.watch(std::thread::sleep);
                         }
                         // The first check failed, so nothing will listen.
-                        None => permission.set(PermissionState::RestartNeeded),
+                        None => {
+                            permission.set(PermissionState::RestartNeeded);
+                            decided(PermissionState::RestartNeeded, &decide);
+                        }
                     }
                 } else {
                     let live = commands::publish_core(
@@ -250,6 +311,7 @@ fn start_clicks(
                         &err,
                         build,
                     );
+                    decided(permission.state(), &decide);
                     startup::run_live(
                         |consumer| {
                             let listener = keys::start(consumer)?;
@@ -270,8 +332,10 @@ fn start_clicks(
         }
         // No clicks, but the window must still open with its controls.
         gate.publish(Arc::new(
-            commands::plain_core(status_of(&output), permission).0,
+            commands::plain_core(status_of(&output), Arc::clone(&permission)).0,
         ));
+        // The window must not stay hidden with nothing behind it.
+        decided(permission.state(), &decide);
     }
 
     output

@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, SoundSet, builtin_click};
+use mechanical_key_sounds_lib::autostart::Inert;
 use mechanical_key_sounds_lib::commands::{Core, CoreParts};
 use mechanical_key_sounds_lib::keys::KeyCode;
 use mechanical_key_sounds_lib::packs::Library;
@@ -51,6 +52,7 @@ fn ac14_the_bundled_packs_are_listed_sorted_by_name_with_author_and_licence() {
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
         live: Arc::new(Live::new(chosen.sounds)),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
@@ -123,6 +125,7 @@ fn ac14_with_no_packs_folder_or_an_empty_one_the_list_is_empty() {
         loaded,
         playing: None,
         fell_back: true,
+        login_item: Arc::new(Inert),
         live: Arc::new(Live::new(SoundSet::single(builtin_click()))),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
@@ -164,6 +167,7 @@ fn get_settings_reports_the_output_status_as_it_is_now() {
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
         live: Arc::new(Live::new(chosen.sounds)),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(move || match s.load(Ordering::SeqCst) {
@@ -380,9 +384,10 @@ fn ac16_enabled_must_be_a_bool() {
 }
 
 #[test]
-fn ac16_fields_other_features_own_are_rejected_by_name() {
+fn ac16_fields_that_are_not_settings_are_rejected_by_name() {
+    // `launch_at_login` was refused here until feature 11 put it in force.
     let rig = rig(Some(&file("full")), &PACKS);
-    for field in ["launch_at_login", "bogus"] {
+    for field in ["launch", "bogus"] {
         assert_rejected(&rig, json!({ field: true }));
         let err = rig.core.set_settings(&json!({ field: true })).unwrap_err();
         assert!(err.contains(field), "{err:?} names {field}");
@@ -407,7 +412,7 @@ fn ac16_one_invalid_field_rejects_the_whole_patch() {
     let rig = rig(Some(&file("full")), &PACKS);
     assert_rejected(&rig, json!({"enabled": false, "volume": 2.0}));
     assert_rejected(&rig, json!({"enabled": false, "pack_id": "nope"}));
-    assert_rejected(&rig, json!({"volume": 0.1, "launch_at_login": true}));
+    assert_rejected(&rig, json!({"volume": 0.1, "bogus": true}));
 }
 
 // AC19 (core half): switching packs
@@ -645,6 +650,7 @@ fn ac22_a_failed_save_still_applies_the_change_and_says_why() {
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
         live: Arc::clone(&live),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
@@ -689,6 +695,7 @@ fn ac22_with_no_settings_path_the_change_applies_and_is_not_saved() {
         },
         playing: chosen.playing,
         fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
         live: Arc::clone(&live),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
@@ -710,6 +717,7 @@ fn core_with_permission(permission: Arc<Permission>) -> Core {
         },
         playing: None,
         fell_back: true,
+        login_item: Arc::new(Inert),
         live: Arc::new(Live::new(SoundSet::single(builtin_click()))),
         permission,
         audio: Box::new(|| OutputStatus::Playing),
@@ -963,20 +971,15 @@ fn feature_09_ac16_one_bad_new_field_rejects_the_whole_patch() {
         json!({"pitch_variation": 0.1, "key_up_sounds": "yes"}),
     );
     assert_rejected_09(&rig, json!({"key_up_sounds": true, "pitch_variation": 0.5}));
-    assert_rejected_09(
-        &rig,
-        json!({"pitch_variation": 0.1, "launch_at_login": false}),
-    );
+    assert_rejected_09(&rig, json!({"pitch_variation": 0.1, "bogus": false}));
 }
 
 #[test]
-fn feature_09_ac16_launch_at_login_is_still_refused_by_name() {
+fn feature_09_ac16_an_unknown_field_is_still_refused_by_name() {
+    // `launch_at_login` was the example until feature 11 put it in force.
     let rig = rig(Some(&file("full")), &PACKS);
-    let err = rig
-        .core
-        .set_settings(&json!({"launch_at_login": false}))
-        .unwrap_err();
-    assert!(err.contains("launch_at_login"), "{err:?}");
+    let err = rig.core.set_settings(&json!({"bogus": false})).unwrap_err();
+    assert!(err.contains("bogus"), "{err:?}");
 }
 
 #[test]

@@ -14,6 +14,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::audio::Previewer;
+use crate::autostart;
 use crate::keys::permission::SystemAccess;
 use crate::permission::{self, Os, Permission};
 
@@ -124,11 +125,35 @@ pub fn open_permission_settings(permission: State<'_, Arc<Permission>>) -> Resul
 }
 
 /// The "Restart now" button: quits and starts the app again. `false`, and
-/// nothing happens, where there is no permission to wait for.
+/// nothing happens, where there is no permission to wait for. Tauri hands
+/// the old arguments to the new process, so the one that marks a login
+/// start is taken out: the user is at the window and must get it back.
 #[tauri::command(async)]
 pub fn restart_app(app: AppHandle) -> bool {
     if !SystemAccess.required() {
         return false;
     }
-    app.restart()
+    let restart = {
+        let app = app.clone();
+        move || {
+            let mut env = app.env();
+            env.args_os = autostart::without_hidden(env.args_os);
+            // As Tauri's own restart does before it starts the new process:
+            // this lets go of the single-instance lock, so the new copy is
+            // not taken for a second launch and turned away.
+            crate::tray::native::remove(&app);
+            app.cleanup_before_exit();
+            tauri::process::restart(&env);
+        }
+    };
+    // The clean-up belongs on the main thread; a command runs off it.
+    match app.run_on_main_thread(restart.clone()) {
+        Ok(()) => loop {
+            std::thread::sleep(std::time::Duration::MAX);
+        },
+        Err(_) => {
+            restart();
+            true
+        }
+    }
 }

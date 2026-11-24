@@ -50,6 +50,16 @@ The app lives in the tray: the menu bar on macOS, the notification area on Windo
 
 On macOS the Dock icon is there only while the settings window is open. Starting the app while it is already running shows its settings window; it does not start a second copy.
 
+### Launch at login
+
+Turn on **Launch at login** at the bottom of the settings window and the app starts by itself when you log in. Such a start is hidden: the icon appears in the tray, keys sound, and no window opens. Starting the app yourself always opens the window.
+
+- macOS lists the app under System Settings, General, Login Items, and may show a "Background Items Added" notification when you turn the switch on.
+- Windows lists it under Task Manager, Startup apps.
+- On macOS, if the Input Monitoring permission is missing at login, the window opens after all to explain it.
+- If you disable the entry in Windows Task Manager, the app's switch is off the next time the app starts. macOS does not tell the app when you switch the item off in Login Items: the app is then not started at login although its switch still shows on. Switch it back on in Login Items.
+- A development build (`npm run tauri dev`) never registers itself; the switch is only saved there.
+
 ## Development
 
 You need Node 22 or later and Rust 1.96 (installed by `rustup` from `rust-toolchain.toml`). On Linux you also need the [Tauri system packages](https://tauri.app/start/prerequisites/) and `libasound2-dev`.
@@ -88,11 +98,11 @@ The settings window has a Sound switch, a volume slider, a pitch variation slide
 }
 ```
 
-`pack_id` is one of `blue`, `brown`, `red` or `typewriter`, or the id of an imported pack. `pitch_variation` is from 0.0 (off) to 0.3. `launch_at_login` is kept for a later feature and has no effect yet; the others are all in force. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
+`pack_id` is one of `blue`, `brown`, `red` or `typewriter`, or the id of an imported pack. `pitch_variation` is from 0.0 (off) to 0.3. `launch_at_login` is compared with the system's own list when the app starts: a registration that is gone or disabled there turns it off, and with the setting off a registration that is still there is removed. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
 
 An unknown pack plays `brown`, and a broken settings file is left as it is with the defaults in use. Either way the window shows a notice, and one line starting `sound pack:` or `settings:` is printed. A broken file is replaced the first time a setting is changed in the window.
 
-To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error`, `no-packs`, `permission-needed`, `permission-restart`, `permission-open-fails`, `no-key-up`, `preview-error`, `imported`, `import-error` or `remove-error` to see that state. There, Import pack… adds a made-up pack with no picker. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console; to play the part of System Settings, run `__mksFake.setPermission("granted")` (or `"needed"`, `"restart_needed"`).
+To look at the window in a browser without the app, run `npm run dev` and open `http://localhost:5173`. There is no core there, so an in-memory stand-in answers (development builds only); add `?state=` with one of `loading`, `load-error`, `no-audio`, `audio-error`, `settings-invalid`, `fields-reset`, `pack-fallback`, `pack-load-error`, `save-error`, `no-packs`, `permission-needed`, `permission-restart`, `permission-open-fails`, `no-key-up`, `preview-error`, `imported`, `import-error`, `remove-error`, `launch-at-login` or `autostart-error` to see that state. There, Import pack… adds a made-up pack with no picker. To play the part of the tray there, run `__mksFake.outsideChange({ enabled: false })` in the browser console; to play the part of System Settings, run `__mksFake.setPermission("granted")` (or `"needed"`, `"restart_needed"`).
 
 ### The bundled packs
 

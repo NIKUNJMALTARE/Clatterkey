@@ -11,7 +11,7 @@
 //! Core::remove_pack(&self, id: &str) -> Result<Value, String>
 //!   // Ok: { packs: [..], change: <result> | null }
 //! Core::list_packs(): each entry gains "imported"
-//! start_core(Library, settings_path, audio, permission, err)
+//! start_core(Library, settings_path, audio, permission, login_item, err)
 //! ```
 
 use std::fs;
@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player, builtin_click};
+use mechanical_key_sounds_lib::autostart::Inert;
 use mechanical_key_sounds_lib::commands::{Core, CoreParts, start_core};
 use mechanical_key_sounds_lib::keys::KeyCode;
 use mechanical_key_sounds_lib::packs::Library;
@@ -81,6 +82,7 @@ fn rig_with(saved_pack: &str, bundled: &[(&str, &str)], prepare: impl FnOnce(&Pa
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
         live: Arc::clone(&live),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),
@@ -442,6 +444,7 @@ fn ac21_start_core_with_a_library_plays_the_saved_imported_pack() {
         Some(path),
         Box::new(|| OutputStatus::Playing),
         Arc::new(Permission::new(PermissionState::NotNeeded)),
+        Arc::new(Inert),
         &err,
     );
 

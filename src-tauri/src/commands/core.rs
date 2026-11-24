@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde_json::{Map, Value, json};
 
 use crate::audio::{Live, MAX_PITCH_VARIATION, OutputStatus, SoundSet, builtin_click};
+use crate::autostart::LoginItem;
 use crate::packs::{self, Library, PackInfo};
 use crate::permission::Permission;
 use crate::settings::DEFAULT_PACK;
@@ -40,6 +41,8 @@ pub struct CoreParts {
     pub live: Arc<Live>,
     /// The macOS key-listening permission, as the watcher last found it.
     pub permission: Arc<Permission>,
+    /// The system's registration that starts the app at login.
+    pub login_item: Arc<dyn LoginItem>,
     pub audio: AudioStatus,
 }
 
@@ -64,6 +67,8 @@ pub struct Core {
     library_lock: Mutex<()>,
     live: Arc<Live>,
     permission: Arc<Permission>,
+    /// Changed only under `state`, so two changes to it never cross.
+    login_item: Arc<dyn LoginItem>,
     audio: AudioStatus,
     /// The start-up problems, as `get_settings` reports them.
     startup: Value,
@@ -72,13 +77,14 @@ pub struct Core {
     listeners: Mutex<Vec<Listener>>,
 }
 
-/// The settings a patch may name. `launch_at_login` waits for its feature.
-const CHANGEABLE: [&str; 5] = [
+/// The settings a patch may name.
+const CHANGEABLE: [&str; 6] = [
     "enabled",
     "volume",
     "pack_id",
     "pitch_variation",
     "key_up_sounds",
+    "launch_at_login",
 ];
 
 /// A checked change: only the fields the patch named.
@@ -89,6 +95,7 @@ struct Patch {
     pack_id: Option<String>,
     pitch_variation: Option<f64>,
     key_up_sounds: Option<bool>,
+    launch_at_login: Option<bool>,
 }
 
 impl Core {
@@ -115,6 +122,7 @@ impl Core {
             library_lock: Mutex::new(()),
             live: parts.live,
             permission: parts.permission,
+            login_item: parts.login_item,
             audio: parts.audio,
             startup,
             state: Mutex::new(State {
@@ -253,11 +261,13 @@ impl Core {
         }
     }
 
-    /// Applies a change to `enabled`, `volume`, `pack_id`, `pitch_variation`
-    /// and `key_up_sounds`, any of them, and saves it. The whole patch is checked first, and a new pack is
-    /// loaded before anything changes, so a rejected patch changes nothing
-    /// and writes nothing. A save that fails is not an error: the change is
-    /// in force and the result says it was not saved.
+    /// Applies a change to `enabled`, `volume`, `pack_id`, `pitch_variation`,
+    /// `key_up_sounds` and `launch_at_login`, any of them, and saves it. The
+    /// whole patch is checked first, a new pack is loaded and the login
+    /// registration is changed before anything else changes, so a rejected
+    /// patch changes nothing and writes nothing. `launch_at_login` alone
+    /// can be refused by the system. A save that fails is not an error: the
+    /// change is in force and the result says it was not saved.
     pub fn set_settings(&self, patch: &Value) -> Result<Value, String> {
         let mut state = self.state();
         let patch = self.check(patch)?;
@@ -300,6 +310,20 @@ impl Core {
             let found = self.library.find(id).ok_or_else(|| unknown_pack(id))?;
             new_sounds = Some(load_pack(&found.dir)?);
         }
+        // Last of what can refuse the patch, so nothing is registered for
+        // a change that is then turned down. Done whenever the field is
+        // named, also with the value in force, which brings a registration
+        // that has strayed back into line.
+        if let Some(on) = patch.launch_at_login {
+            let (changed, word) = if on {
+                (self.login_item.enable(), "on")
+            } else {
+                (self.login_item.disable(), "off")
+            };
+            changed.map_err(|error| {
+                format!("settings change: launch at login could not be turned {word}: {error}")
+            })?;
+        }
         Ok(self.put_in_force(state, patch, new_sounds))
     }
 
@@ -322,6 +346,9 @@ impl Core {
         if let Some(on) = patch.key_up_sounds {
             state.settings.key_up_sounds = on;
             self.live.set_key_up(on);
+        }
+        if let Some(on) = patch.launch_at_login {
+            state.settings.launch_at_login = on;
         }
         if let Some(id) = patch.pack_id {
             if let Some(sounds) = new_sounds {
@@ -384,6 +411,12 @@ impl Core {
             key_up_sounds: field(
                 map,
                 "key_up_sounds",
+                |v| v.as_bool(),
+                "must be true or false",
+            )?,
+            launch_at_login: field(
+                map,
+                "launch_at_login",
                 |v| v.as_bool(),
                 "must be true or false",
             )?,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { KeyUpSwitch } from "./components/KeyUpSwitch";
+import { LaunchSwitch } from "./components/LaunchSwitch";
 import { type Notice, Notices } from "./components/Notices";
 import { PackList } from "./components/PackList";
 import {
@@ -181,6 +182,7 @@ function Settings({
 					view.choosePack(id);
 				}}
 			/>
+			<LaunchSwitch on={view.launchAtLogin} onChange={view.setLaunchAtLogin} />
 			{/*
 			 * Read out by a screen reader when a pack is imported or removed.
 			 * Not `role="status"`: the warning notices are that. The key makes

@@ -25,6 +25,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player};
+use mechanical_key_sounds_lib::autostart::Inert;
 use mechanical_key_sounds_lib::commands::{Core, CoreGate, CoreParts, Listener};
 use mechanical_key_sounds_lib::keys::KeyCode;
 use mechanical_key_sounds_lib::packs::Library;
@@ -94,6 +95,7 @@ fn blocked_rig() -> (
         loaded,
         playing: chosen.playing,
         fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
         live: Arc::clone(&live),
         permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
         audio: Box::new(|| OutputStatus::Playing),

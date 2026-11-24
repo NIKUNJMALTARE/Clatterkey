@@ -6,7 +6,7 @@ The app notices only that a key went down or came up. It never records, stores o
 
 ## Install
 
-Download the installer for your system from the [Releases page](https://github.com/NIKUNJMALTARE/Mechanical_Keyboard/releases).
+Download the installer for your system from the [Releases page](https://github.com/NIKUNJMALTARE/Clatterkey/releases).
 
 | System | Needs | File |
 |---|---|---|

@@ -20,9 +20,7 @@
 use std::fs;
 use std::path::Path;
 
-use mechanical_key_sounds_lib::settings::{
-    DEFAULT_PACK, ReadError, Settings, load_or_create, read, save,
-};
+use clickclak_lib::settings::{DEFAULT_PACK, ReadError, Settings, load_or_create, read, save};
 
 mod common;
 use common::*;

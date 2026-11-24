@@ -3,9 +3,7 @@
 
 use std::collections::HashSet;
 
-use mechanical_key_sounds_lib::keys::{
-    KeyCode, KeyEvent, KeyKind, KeyListenError, RawKey, RepeatFilter,
-};
+use clickclak_lib::keys::{KeyCode, KeyEvent, KeyKind, KeyListenError, RawKey, RepeatFilter};
 
 /// Renders an event as `down KeyA`. Destructures `KeyEvent` exhaustively, so
 /// adding a field to it fails to compile (AC10).
@@ -310,6 +308,6 @@ fn error_displays() {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 #[test]
 fn ac11_start_returns_unsupported_on_other_platforms() {
-    let result = mechanical_key_sounds_lib::keys::start(|_event| {});
+    let result = clickclak_lib::keys::start(|_event| {});
     assert!(matches!(result, Err(KeyListenError::Unsupported)));
 }

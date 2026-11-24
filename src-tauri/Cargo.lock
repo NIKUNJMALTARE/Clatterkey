@@ -545,6 +545,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "clickclak"
+version = "0.1.0"
+dependencies = [
+ "auto-launch",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "png",
+ "rdev",
+ "rodio",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-single-instance",
+ "windows-registry",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2309,22 +2328,6 @@ dependencies = [
  "log",
  "tendril",
  "web_atoms 0.3.0",
-]
-
-[[package]]
-name = "mechanical-key-sounds"
-version = "0.1.0"
-dependencies = [
- "objc2-core-foundation",
- "objc2-core-graphics",
- "rdev",
- "rodio",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-single-instance",
 ]
 
 [[package]]

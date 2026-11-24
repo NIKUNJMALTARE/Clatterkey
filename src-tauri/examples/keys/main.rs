@@ -8,7 +8,7 @@ use std::io::Write;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 
-use mechanical_key_sounds_lib::keys::{self, KeyEvent, KeyListenError};
+use clickclak_lib::keys::{self, KeyEvent, KeyListenError};
 
 #[cfg(test)]
 mod tests;

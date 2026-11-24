@@ -1,6 +1,6 @@
 {
   "name": "Brown switches",
-  "author": "Mechanical Key Sounds contributors",
+  "author": "ClickClak contributors",
   "license": "CC0-1.0",
   "keys": {
     "default": ["down/default-1.wav", "down/default-2.wav", "down/default-3.wav", "down/default-4.wav", "down/default-5.wav"],

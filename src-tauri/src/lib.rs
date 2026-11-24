@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod autostart;
 pub mod commands;
+pub mod handover;
 pub mod keys;
 pub mod packs;
 pub mod permission;
@@ -9,7 +10,7 @@ pub mod startup;
 pub mod tray;
 
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tauri::path::BaseDirectory;
@@ -32,7 +33,7 @@ pub fn write_line(out: &Mutex<dyn Write + Send>, line: &str) {
 }
 
 /// The product name shown in the window title and the UI.
-pub const APP_NAME: &str = "Mechanical Key Sounds";
+pub const APP_NAME: &str = "ClickClak";
 
 /// The event that tells the settings window of a change made anywhere,
 /// with the `set_settings` result.
@@ -253,14 +254,41 @@ fn start_clicks(
                 let err: ErrorOut = Arc::new(Mutex::new(std::io::stderr()));
                 // The pack is loaded before the listener starts, so no key
                 // plays from a half-loaded pack.
+                //
+                // What the app left under its old name is carried over
+                // first, and the order matters: the old settings and packs
+                // are copied before the settings are read (a first read
+                // would write the defaults and the copy would never be
+                // made); then, with the setting known, the old login
+                // registration is taken out and the new one put in its
+                // place; only then is the setting compared with the system.
                 let build = |audio| {
-                    commands::start_core(
+                    let copied = match settings_path.as_deref().and_then(Path::parent) {
+                        Some(folder) => match handover::old_folder(folder) {
+                            Some(old) => handover::copy_files(&old, folder, &err),
+                            None => handover::Copied::Nothing,
+                        },
+                        None => handover::Copied::Nothing,
+                    };
+                    let new_item = Arc::clone(&login_item);
+                    commands::start_core_after(
                         library,
                         settings_path,
                         audio,
                         Arc::clone(&permission),
                         login_item,
                         &err,
+                        |setting_on| {
+                            let old = autostart::native::old_login_item(handover::OLD_APP_NAME);
+                            handover::login(
+                                copied,
+                                setting_on,
+                                autostart::native::registers(),
+                                &*old,
+                                &*new_item,
+                                &err,
+                            );
+                        },
                     )
                 };
                 if SystemAccess.required() {

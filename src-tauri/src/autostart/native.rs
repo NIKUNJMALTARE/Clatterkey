@@ -38,6 +38,78 @@ pub fn login_item(app: &AppHandle) -> Arc<dyn LoginItem> {
     }
 }
 
+/// The registration an earlier name of the app left, so that it can be
+/// read and removed (see `handover`). The plugin reaches only the present
+/// name, so this one is built directly on the library the plugin uses,
+/// which names the launch agent file and the `Run` value after the app.
+/// It does nothing in a development build, or if it cannot be built.
+pub fn old_login_item(name: &str) -> Arc<dyn LoginItem> {
+    if !registers() {
+        return Arc::new(Inert);
+    }
+    // The path is what `enable` would register, and `enable` is never
+    // asked of an old name; it only has to be there.
+    let path = std::env::current_exe()
+        .map(|path| path.display().to_string())
+        .unwrap_or_default();
+    let mut builder = auto_launch::AutoLaunchBuilder::new();
+    builder.set_app_name(name).set_app_path(&path);
+    #[cfg(target_os = "macos")]
+    builder.set_macos_launch_mode(auto_launch::MacOSLaunchMode::LaunchAgent);
+    match builder.build() {
+        Ok(launch) => Arc::new(OldLoginItem {
+            launch,
+            #[cfg(windows)]
+            name: name.to_string(),
+        }),
+        Err(_) => Arc::new(Inert),
+    }
+}
+
+struct OldLoginItem {
+    launch: auto_launch::AutoLaunch,
+    #[cfg(windows)]
+    name: String,
+}
+
+impl LoginItem for OldLoginItem {
+    /// Never made again: an old name is only ever taken out.
+    fn enable(&self) -> Result<(), String> {
+        Err("a registration under an old name is not made".to_string())
+    }
+
+    fn disable(&self) -> Result<(), String> {
+        self.launch.disable().map_err(|error| error.to_string())?;
+        #[cfg(windows)]
+        remove_startup_approved(&self.name)?;
+        Ok(())
+    }
+
+    fn is_enabled(&self) -> Result<bool, String> {
+        self.launch.is_enabled().map_err(|error| error.to_string())
+    }
+}
+
+/// Removes the mark Windows keeps, under the same name, for an entry the
+/// user disabled in Task Manager. The library's removal leaves it behind.
+/// One that is not there is not an error.
+#[cfg(windows)]
+fn remove_startup_approved(name: &str) -> Result<(), String> {
+    const KEY: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+    // ERROR_FILE_NOT_FOUND as an HRESULT: no such key, or no such value.
+    const NOT_FOUND: i32 = 0x8007_0002_u32 as i32;
+    match windows_registry::CURRENT_USER
+        .options()
+        .write()
+        .open(KEY)
+        .and_then(|key| key.remove_value(name))
+    {
+        Ok(()) => Ok(()),
+        Err(error) if error.code().0 == NOT_FOUND => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 struct SystemLoginItem(AppHandle);
 
 impl SystemLoginItem {

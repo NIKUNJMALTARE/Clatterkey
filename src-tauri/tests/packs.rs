@@ -21,9 +21,9 @@
 use std::fs;
 use std::time::Duration;
 
-use mechanical_key_sounds_lib::audio::{DecodeError, Sample, decode};
-use mechanical_key_sounds_lib::keys::{KeyGroup, KeyKind};
-use mechanical_key_sounds_lib::packs::{PackError, PackErrorKind, load};
+use clickclak_lib::audio::{DecodeError, Sample, decode};
+use clickclak_lib::keys::{KeyGroup, KeyKind};
+use clickclak_lib::packs::{PackError, PackErrorKind, load};
 
 mod common;
 use common::*;
@@ -917,7 +917,7 @@ fn ac9_a_clean_float_wav_decodes() {
 
 #[test]
 fn feature_09_ac18_read_info_says_whether_a_pack_has_key_up_sounds() {
-    use mechanical_key_sounds_lib::packs::read_info;
+    use clickclak_lib::packs::read_info;
     assert!(read_info(&fixture_pack("full")).unwrap().has_key_up);
     assert!(
         read_info(&fixture_pack("up-space-only"))
@@ -930,7 +930,7 @@ fn feature_09_ac18_read_info_says_whether_a_pack_has_key_up_sounds() {
 
 #[test]
 fn feature_09_ac18_empty_up_groups_do_not_count_and_no_audio_file_is_opened() {
-    use mechanical_key_sounds_lib::packs::read_info;
+    use clickclak_lib::packs::read_info;
     let pack = TestPack::new(
         "emptyup",
         r#"{"name":"E","license":"CC0-1.0","keys":{"default":["a.wav"]},"up":{"default":[],"space":[]}}"#,

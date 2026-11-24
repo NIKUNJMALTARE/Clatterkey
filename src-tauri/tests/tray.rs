@@ -24,15 +24,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player};
-use mechanical_key_sounds_lib::autostart::Inert;
-use mechanical_key_sounds_lib::commands::{Core, CoreGate, CoreParts, Listener};
-use mechanical_key_sounds_lib::keys::KeyCode;
-use mechanical_key_sounds_lib::packs::Library;
-use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
-use mechanical_key_sounds_lib::settings::{self, Settings};
-use mechanical_key_sounds_lib::startup::choose_pack;
-use mechanical_key_sounds_lib::tray::{
+use clickclak_lib::audio::{Live, OutputStatus, Player};
+use clickclak_lib::autostart::Inert;
+use clickclak_lib::commands::{Core, CoreGate, CoreParts, Listener};
+use clickclak_lib::keys::KeyCode;
+use clickclak_lib::packs::Library;
+use clickclak_lib::permission::{Permission, PermissionState};
+use clickclak_lib::settings::{self, Settings};
+use clickclak_lib::startup::choose_pack;
+use clickclak_lib::tray::{
     CloseDecision, ExitDecision, MENU, MenuEntry, TrayAction, TrayIconKind, TraySync, TrayView,
     action_for, on_close_request, on_exit_request, toggle_sound,
 };
@@ -112,7 +112,7 @@ fn ac1_sound_on_shows_a_tick_the_normal_icon_and_the_plain_tooltip() {
     let view = TrayView::of(true);
     assert!(view.checked);
     assert_eq!(view.icon, TrayIconKind::Normal);
-    assert_eq!(view.tooltip, "Mechanical Key Sounds");
+    assert_eq!(view.tooltip, "ClickClak");
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn ac1_sound_off_shows_no_tick_the_dimmed_icon_and_the_off_tooltip() {
     let view = TrayView::of(false);
     assert!(!view.checked);
     assert_eq!(view.icon, TrayIconKind::Off);
-    assert_eq!(view.tooltip, "Mechanical Key Sounds (sound off)");
+    assert_eq!(view.tooltip, "ClickClak (sound off)");
 }
 
 // AC2: the menu
@@ -145,7 +145,7 @@ fn ac2_the_menu_is_sound_settings_separator_quit_in_that_order() {
     assert!(matches!(MENU[2], MenuEntry::Separator));
     match &MENU[3] {
         MenuEntry::Item { id, label, action } => {
-            assert_eq!((*id, *label), ("quit", "Quit Mechanical Key Sounds"));
+            assert_eq!((*id, *label), ("quit", "Quit ClickClak"));
             assert!(matches!(action, TrayAction::Quit));
         }
         _ => panic!("last entry must be Quit"),

@@ -20,14 +20,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
-use mechanical_key_sounds_lib::audio::{Live, OutputStatus, Player, builtin_click};
-use mechanical_key_sounds_lib::autostart::Inert;
-use mechanical_key_sounds_lib::commands::{Core, CoreParts, start_core};
-use mechanical_key_sounds_lib::keys::KeyCode;
-use mechanical_key_sounds_lib::packs::Library;
-use mechanical_key_sounds_lib::permission::{Permission, PermissionState};
-use mechanical_key_sounds_lib::settings;
-use mechanical_key_sounds_lib::startup::choose_pack_in;
+use clickclak_lib::audio::{Live, OutputStatus, Player, builtin_click};
+use clickclak_lib::autostart::Inert;
+use clickclak_lib::commands::{Core, CoreParts, start_core};
+use clickclak_lib::keys::KeyCode;
+use clickclak_lib::packs::Library;
+use clickclak_lib::permission::{Permission, PermissionState};
+use clickclak_lib::settings;
+use clickclak_lib::startup::choose_pack_in;
 use serde_json::{Value, json};
 
 mod common;

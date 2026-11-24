@@ -20,9 +20,9 @@ use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use mechanical_key_sounds_lib::audio::{Player, Sample, Sink, builtin_click};
-use mechanical_key_sounds_lib::keys::{KeyCode, KeyEvent, KeyKind, KeyListenError};
-use mechanical_key_sounds_lib::startup::{key_consumer, run_clicks};
+use clickclak_lib::audio::{Player, Sample, Sink, builtin_click};
+use clickclak_lib::keys::{KeyCode, KeyEvent, KeyKind, KeyListenError};
+use clickclak_lib::startup::{key_consumer, run_clicks};
 
 type Wait = Box<dyn FnOnce() -> Result<(), KeyListenError>>;
 
@@ -138,7 +138,7 @@ fn ac11_a_healthy_listener_plays_a_click_on_down_only_and_writes_nothing() {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 #[test]
 fn ac12_on_an_unsupported_platform_run_clicks_reports_it_and_returns() {
-    use mechanical_key_sounds_lib::keys;
+    use clickclak_lib::keys;
 
     let sink = Arc::new(RecordingSink::default());
     let (buffer, err) = fake_err();

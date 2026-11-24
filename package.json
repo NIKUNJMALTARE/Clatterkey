@@ -1,5 +1,5 @@
 {
-	"name": "mechanical-key-sounds",
+	"name": "clickclak",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
@@ -13,6 +13,7 @@
 		"test": "vitest run",
 		"keys": "cargo run --manifest-path src-tauri/Cargo.toml --example keys",
 		"make-packs": "cargo run --manifest-path src-tauri/Cargo.toml --example make-packs",
+		"make-app-icons": "scripts/make-app-icons.sh",
 		"make-tray-icons": "cargo run --manifest-path src-tauri/Cargo.toml --example make-tray-icons",
 		"prepare": "node scripts/prepare.mjs"
 	},

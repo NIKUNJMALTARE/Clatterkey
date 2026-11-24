@@ -11,8 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use mechanical_key_sounds_lib::audio::{Sample, decode};
-use mechanical_key_sounds_lib::packs;
+use clickclak_lib::audio::{Sample, decode};
+use clickclak_lib::packs;
 use serde_json::Value;
 
 const IDS: [&str; 4] = ["blue", "brown", "red", "typewriter"];
@@ -225,7 +225,7 @@ fn ac1_each_pack_loads_with_its_name_licence_and_author() {
         assert_eq!(pack.license, "CC0-1.0", "pack {id}");
         assert_eq!(
             pack.author.as_deref(),
-            Some("Mechanical Key Sounds contributors"),
+            Some("ClickClak contributors"),
             "pack {id}"
         );
     }

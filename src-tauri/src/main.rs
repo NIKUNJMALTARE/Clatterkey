@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    mechanical_key_sounds_lib::run()
+    clickclak_lib::run()
 }

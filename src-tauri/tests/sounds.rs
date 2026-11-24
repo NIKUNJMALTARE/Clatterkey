@@ -11,8 +11,8 @@
 //! SoundSet::pick(&self, kind: KeyKind, group: KeyGroup) -> Option<&Sample>
 //! ```
 
-use mechanical_key_sounds_lib::audio::{Sample, SoundSet};
-use mechanical_key_sounds_lib::keys::{KeyGroup, KeyKind};
+use clickclak_lib::audio::{Sample, SoundSet};
+use clickclak_lib::keys::{KeyGroup, KeyKind};
 
 /// A sample whose length (`n` samples) tells it apart from the others.
 fn s(n: usize) -> Sample {

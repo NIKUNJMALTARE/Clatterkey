@@ -60,7 +60,12 @@ export interface SettingsState {
 export type SettingsPatch = Partial<
 	Pick<
 		Settings,
-		"enabled" | "volume" | "pack_id" | "pitch_variation" | "key_up_sounds"
+		| "enabled"
+		| "volume"
+		| "pack_id"
+		| "pitch_variation"
+		| "key_up_sounds"
+		| "launch_at_login"
 	>
 >;
 

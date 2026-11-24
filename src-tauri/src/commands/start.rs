@@ -10,12 +10,14 @@ use std::sync::Arc;
 
 use super::{AudioStatus, Core, CoreGate, CoreParts};
 use crate::audio::{Live, SoundSet, builtin_click};
+use crate::autostart::{self, Inert, LoginItem};
 use crate::permission::Permission;
-use crate::settings::{self, Loaded, Settings};
+use crate::settings::{self, LoadProblem, Loaded, Settings};
 use crate::startup::choose_pack_in;
 use crate::{ErrorOut, write_line};
 
-/// Reads the settings (creating the file if it is missing), chooses the
+/// Reads the settings (creating the file if it is missing), puts
+/// `launch_at_login` in step with the system's registration, chooses the
 /// pack, and builds the `Core` over them. Returns it with the state the
 /// key path plays from.
 pub fn start_core(
@@ -23,9 +25,10 @@ pub fn start_core(
     settings_path: Option<PathBuf>,
     audio: AudioStatus,
     permission: Arc<Permission>,
+    login_item: Arc<dyn LoginItem>,
     err: &ErrorOut,
 ) -> (Core, Arc<Live>) {
-    let loaded = match &settings_path {
+    let mut loaded = match &settings_path {
         Some(path) => settings::load_or_create_report(path, err),
         None => {
             write_line(
@@ -38,6 +41,22 @@ pub fn start_core(
             }
         }
     };
+    // The system's login registration and the setting are put in step
+    // here, before the window can read the setting.
+    let launch = autostart::reconcile(loaded.settings.launch_at_login, &*login_item, err);
+    if launch != loaded.settings.launch_at_login {
+        loaded.settings.launch_at_login = launch;
+        // A file that could not be read is left as the user has it.
+        let rewritable = !matches!(loaded.problem, Some(LoadProblem::Unreadable));
+        if let (true, Some(path)) = (rewritable, &settings_path)
+            && let Err(e) = settings::save(path, &loaded.settings)
+        {
+            write_line(
+                err,
+                &format!("settings: could not save {}: {e}", path.display()),
+            );
+        }
+    }
     // What an import or a removal left half-done in an earlier run.
     library.clean_temporary();
     let chosen = choose_pack_in(&library, &loaded.settings.pack_id, err);
@@ -50,6 +69,7 @@ pub fn start_core(
         fell_back: chosen.fell_back,
         live: Arc::clone(&live),
         permission,
+        login_item,
         audio,
     });
     (core, live)
@@ -70,6 +90,7 @@ pub fn plain_core(audio: AudioStatus, permission: Arc<Permission>) -> (Core, Arc
         fell_back: true,
         live: Arc::clone(&live),
         permission,
+        login_item: Arc::new(Inert),
         audio,
     });
     (core, live)

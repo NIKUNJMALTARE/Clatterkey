@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use mechanical_key_sounds_lib::audio::Player;
 use mechanical_key_sounds_lib::audio::{Live, OutputStatus};
+use mechanical_key_sounds_lib::autostart::Inert;
 use mechanical_key_sounds_lib::commands::{
     AudioStatus, Core, CoreGate, plain_core, publish_core, start_core,
 };
@@ -112,6 +113,7 @@ fn start_core_reads_the_file_and_plays_the_chosen_pack() {
         Some(path),
         playing(),
         perm(),
+        Arc::new(Inert),
         &err,
     );
     assert_eq!(core.get_settings()["playing_pack"], "full");
@@ -129,6 +131,7 @@ fn start_core_with_no_settings_path_uses_defaults_and_says_so() {
         None,
         playing(),
         perm(),
+        Arc::new(Inert),
         &err,
     );
     assert_eq!(core.get_settings()["playing_pack"], "brown");
@@ -150,6 +153,7 @@ fn start_core_falls_back_to_the_default_pack() {
         Some(path.clone()),
         playing(),
         perm(),
+        Arc::new(Inert),
         &err,
     );
     let v = core.get_settings();
@@ -174,6 +178,7 @@ fn start_core_falls_back_to_the_built_in_click_with_no_packs() {
         Some(path),
         playing(),
         perm(),
+        Arc::new(Inert),
         &err,
     );
     let v = core.get_settings();
@@ -193,6 +198,7 @@ fn start_core_falls_back_to_the_built_in_click_with_no_packs_folder() {
         Some(dir.path().join("settings.json")),
         playing(),
         perm(),
+        Arc::new(Inert),
         &err,
     );
     assert!(core.get_settings()["playing_pack"].is_null());
@@ -228,6 +234,7 @@ fn publish_core_publishes_what_build_made_and_returns_its_live() {
             Some(path.clone()),
             audio,
             perm(),
+            Arc::new(Inert),
             &err,
         )
     });
@@ -254,6 +261,7 @@ fn publish_core_publishes_a_core_when_the_pack_choice_falls_back() {
             Some(path.clone()),
             audio,
             perm(),
+            Arc::new(Inert),
             &err,
         )
     });
@@ -278,6 +286,7 @@ fn publish_core_publishes_a_core_with_no_packs_or_no_packs_folder() {
                 Some(path.clone()),
                 audio,
                 perm(),
+                Arc::new(Inert),
                 &err,
             )
         });
@@ -299,6 +308,7 @@ fn publish_core_publishes_a_core_when_there_is_no_settings_path() {
             None,
             audio,
             perm(),
+            Arc::new(Inert),
             &err,
         )
     });

@@ -37,6 +37,9 @@ tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2.5"
 # The system folder picker for importing a pack. Only its Rust API is used.
 tauri-plugin-dialog = "2.8"
+# Registers the app with the system to start at login. Only its Rust API
+# is used.
+tauri-plugin-autostart = "2.7"
 # Audio output and mixer, and decoders for the formats a sound pack may use.
 rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "vorbis", "mp3", "flac"] }
 # Reads `pack.json`.

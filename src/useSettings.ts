@@ -66,6 +66,7 @@ export interface Ready {
 	keyUpSounds: boolean;
 	/** Says that what is playing has no key-up sounds; null when it has. */
 	keyUpNote: string | null;
+	launchAtLogin: boolean;
 	/** Why the last preview could not be played. */
 	previewError: string | null;
 	/** Whether the folder picker is open or an import is running. */
@@ -87,6 +88,7 @@ export interface Ready {
 	/** Sends a pitch variation that is waiting for the throttle, now. */
 	flushPitch(): void;
 	setKeyUpSounds(on: boolean): void;
+	setLaunchAtLogin(on: boolean): void;
 	/** Plays the preview phrase. It changes no setting. */
 	preview(): void;
 	dismissPreviewError(): void;
@@ -645,6 +647,8 @@ export function useSettings(): SettingsView {
 		pitchPercent: Math.round(pitch * 100),
 		keyUpSounds: desired.key_up_sounds ?? confirmed.settings.key_up_sounds,
 		keyUpNote,
+		launchAtLogin:
+			desired.launch_at_login ?? confirmed.settings.launch_at_login,
 		previewError,
 		importing,
 		importError,
@@ -668,6 +672,7 @@ export function useSettings(): SettingsView {
 		setPitchPercent,
 		flushPitch,
 		setKeyUpSounds: (on) => change({ key: "key_up_sounds", value: on }),
+		setLaunchAtLogin: (on) => change({ key: "launch_at_login", value: on }),
 		preview,
 		dismissPreviewError: () => setPreviewError(null),
 		choosePack: (id) => {

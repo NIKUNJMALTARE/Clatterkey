@@ -65,15 +65,93 @@ fn ac14_the_bundled_packs_are_listed_sorted_by_name_with_author_and_licence() {
         [
             "Blue switches",
             "Brown switches",
+            "Fast linear",
             "Red switches",
+            "Sharp clicky",
+            "Tactile bump",
+            "Thocky linear",
             "Typewriter"
         ]
     );
     let ids: Vec<&str> = rows.iter().map(|r| r["id"].as_str().unwrap()).collect();
-    assert_eq!(ids, ["blue", "brown", "red", "typewriter"]);
+    assert_eq!(
+        ids,
+        [
+            "blue",
+            "brown",
+            "fast-linear",
+            "red",
+            "sharp-clicky",
+            "tactile-bump",
+            "thocky-linear",
+            "typewriter"
+        ]
+    );
     for row in rows {
         assert_eq!(row["license"], "CC0-1.0");
         assert_eq!(row["author"], "Clatterkey contributors");
+    }
+}
+
+/// A core over the real bundled folder, starting on `start`, saving to a
+/// fresh settings file.
+fn real_core(start: &str) -> (Core, std::path::PathBuf, TempDir) {
+    let tmp = TempDir::new("real-core");
+    let path = tmp.path().join("settings.json");
+    fs::write(&path, format!(r#"{{"pack_id":"{start}"}}"#)).unwrap();
+    let (_, err) = fake_err();
+    let loaded = settings::load_or_create_report(&path, &err);
+    let chosen = choose_pack(Some(&bundled()), &loaded.settings.pack_id, &err);
+    let core = Core::new(CoreParts {
+        settings_path: Some(path.clone()),
+        library: Library::bundled_only(bundled()),
+        loaded,
+        playing: chosen.playing,
+        fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
+        live: Arc::new(Live::new(chosen.sounds)),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
+        audio: Box::new(|| OutputStatus::Playing),
+    });
+    (core, path, tmp)
+}
+
+#[test]
+fn feature_15_ac10_the_four_new_packs_have_key_up_and_typewriter_does_not() {
+    let (core, _, _tmp) = real_core("brown");
+    let list = core.list_packs();
+    let rows = list.as_array().unwrap();
+    assert_eq!(rows.len(), 8, "eight bundled packs");
+    for row in rows {
+        let id = row["id"].as_str().unwrap();
+        assert_eq!(row["has_key_up"], id != "typewriter", "pack {id}");
+    }
+    for id in [
+        "thocky-linear",
+        "fast-linear",
+        "sharp-clicky",
+        "tactile-bump",
+    ] {
+        let row = rows.iter().find(|r| r["id"] == id).expect("listed");
+        assert_eq!(row["has_key_up"], true, "pack {id}");
+    }
+}
+
+#[test]
+fn feature_15_ac11_set_settings_switches_to_each_new_pack_and_saves_it() {
+    for id in [
+        "thocky-linear",
+        "fast-linear",
+        "sharp-clicky",
+        "tactile-bump",
+    ] {
+        let (core, path, _tmp) = real_core("brown");
+        let result = core
+            .set_settings(&json!({"pack_id": id}))
+            .unwrap_or_else(|e| panic!("{id}: {e}"));
+        assert_eq!(result["playing_pack"], id);
+        assert_eq!(result["saved"], true);
+        assert_eq!(settings::read(&path).unwrap().settings.pack_id, id);
     }
 }
 

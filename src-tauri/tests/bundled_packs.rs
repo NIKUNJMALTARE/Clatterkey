@@ -1,5 +1,5 @@
-//! Tests for the four committed packs in `src-tauri/resources/packs/`
-//! (feature 05: AC1 to AC4). They read the packs straight from the
+//! Tests for the eight committed packs in `src-tauri/resources/packs/`
+//! (feature 05: AC1 to AC4, changed by feature 15: AC1 to AC6 and AC9). They read the packs straight from the
 //! repository, so no bundling or Tauri is involved.
 //!
 //! Interfaces used (feature 04, unchanged): `packs::load(&Path)`,
@@ -15,8 +15,31 @@ use clatterkey_lib::audio::{Sample, decode};
 use clatterkey_lib::packs;
 use serde_json::Value;
 
-const IDS: [&str; 4] = ["blue", "brown", "red", "typewriter"];
-const SWITCH_IDS: [&str; 3] = ["blue", "brown", "red"];
+const IDS: [&str; 8] = [
+    "blue",
+    "brown",
+    "red",
+    "typewriter",
+    "thocky-linear",
+    "fast-linear",
+    "sharp-clicky",
+    "tactile-bump",
+];
+const SWITCH_IDS: [&str; 7] = [
+    "blue",
+    "brown",
+    "red",
+    "thocky-linear",
+    "fast-linear",
+    "sharp-clicky",
+    "tactile-bump",
+];
+const NEW_IDS: [&str; 4] = [
+    "thocky-linear",
+    "fast-linear",
+    "sharp-clicky",
+    "tactile-bump",
+];
 const GROUPS: [&str; 5] = ["default", "space", "enter", "backspace", "modifier"];
 
 fn packs_dir() -> PathBuf {
@@ -217,6 +240,10 @@ fn ac1_each_pack_loads_with_its_name_licence_and_author() {
         ("brown", "Brown switches"),
         ("red", "Red switches"),
         ("typewriter", "Typewriter"),
+        ("thocky-linear", "Thocky linear"),
+        ("fast-linear", "Fast linear"),
+        ("sharp-clicky", "Sharp clicky"),
+        ("tactile-bump", "Tactile bump"),
     ];
     for (id, name) in names {
         let pack = packs::load(&pack_dir(id)).unwrap_or_else(|e| panic!("{e}"));
@@ -249,9 +276,9 @@ fn ac2_every_pack_has_all_down_groups_with_enough_variations() {
         for group in GROUPS {
             let n = listed(id, "keys", group).len();
             let min = match (group, id) {
-                ("default", _) => 4,
+                ("default", _) => 8,
                 ("enter", "typewriter") => 1,
-                _ => 2,
+                _ => 3,
             };
             assert!(n >= min, "pack {id} keys.{group}: {n} files, need {min}");
         }
@@ -261,10 +288,8 @@ fn ac2_every_pack_has_all_down_groups_with_enough_variations() {
 #[test]
 fn ac2_switch_packs_have_up_default_and_typewriter_has_no_up() {
     for id in SWITCH_IDS {
-        assert!(
-            !listed(id, "up", "default").is_empty(),
-            "pack {id} needs up.default"
-        );
+        let n = listed(id, "up", "default").len();
+        assert!(n >= 3, "pack {id} needs at least 3 up.default, has {n}");
     }
     let m = manifest("typewriter");
     let up = m.get("up");
@@ -292,8 +317,9 @@ fn ac3_every_sample_is_16_bit_44k_wav_not_silent_and_peaks_below_minus_1_dbfs() 
         assert!(!files.is_empty());
         for f in files {
             let bytes = read_file(id, &f);
-            let (tag, _ch, rate, bits) = wav_format(&bytes);
+            let (tag, ch, rate, bits) = wav_format(&bytes);
             assert_eq!(tag, 1, "pack {id} {f}: PCM");
+            assert_eq!(ch, 1, "pack {id} {f}: mono");
             assert_eq!(rate, 44_100, "pack {id} {f}: sample rate");
             assert_eq!(bits, 16, "pack {id} {f}: bit depth");
             let s =
@@ -319,9 +345,9 @@ fn ac3_default_groups_are_matched_in_loudness_within_3_db() {
 }
 
 #[test]
-fn ac3_the_packs_total_under_5_mb() {
+fn ac3_the_packs_total_under_8_mb() {
     let size = dir_size(&packs_dir());
-    assert!(size < 5_000_000, "packs are {size} bytes");
+    assert!(size < 8_000_000, "packs are {size} bytes");
 }
 
 // AC4
@@ -360,7 +386,7 @@ fn ac4_typewriter_enter_is_longer_than_half_a_second() {
 }
 
 #[test]
-fn ac4_no_two_files_across_the_packs_are_identical() {
+fn ac6_no_two_files_across_the_packs_are_identical() {
     let mut files = Vec::new();
     for id in IDS {
         files_under(&pack_dir(id), &mut files);
@@ -369,7 +395,7 @@ fn ac4_no_two_files_across_the_packs_are_identical() {
         .iter()
         .filter(|p| p.extension().is_some_and(|e| e == "wav"))
         .collect();
-    assert!(wavs.len() >= 40, "only {} wav files", wavs.len());
+    assert!(wavs.len() >= 150, "only {} wav files", wavs.len());
     let mut seen: HashSet<Vec<u8>> = HashSet::new();
     for p in wavs {
         assert!(
@@ -377,6 +403,176 @@ fn ac4_no_two_files_across_the_packs_are_identical() {
             "duplicate file: {}",
             p.display()
         );
+    }
+}
+
+// AC5
+
+/// Seconds from the start until the last sample above peak * 0.01 (-40 dB).
+fn fall_time(s: &Sample) -> f64 {
+    let ch = usize::from(s.channels());
+    let mono: Vec<f64> = s
+        .samples()
+        .iter()
+        .step_by(ch)
+        .map(|v| f64::from(v.abs()))
+        .collect();
+    let p = mono.iter().cloned().fold(0.0, f64::max);
+    let last = mono.iter().rposition(|v| *v > p * 0.01).unwrap_or(0);
+    last as f64 / f64::from(s.sample_rate())
+}
+
+fn mean_fall_time(id: &str) -> f64 {
+    let files = listed(id, "keys", "default");
+    assert!(!files.is_empty(), "pack {id}: no default files");
+    files
+        .iter()
+        .map(|f| fall_time(&decoded(id, f)))
+        .sum::<f64>()
+        / files.len() as f64
+}
+
+#[test]
+fn ac5_sharp_clicky_is_the_brightest_and_thocky_linear_the_darkest_of_all_eight() {
+    let all: Vec<(f64, &str)> = IDS
+        .iter()
+        .map(|id| (mean_centroid(id, "default"), *id))
+        .collect();
+    for (c, id) in &all {
+        if *id != "sharp-clicky" {
+            assert!(
+                mean_centroid("sharp-clicky", "default") > *c,
+                "sharp-clicky is not above {id}: {all:?}"
+            );
+        }
+        if *id != "thocky-linear" {
+            assert!(
+                mean_centroid("thocky-linear", "default") < *c,
+                "thocky-linear is not below {id}: {all:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ac5_sharp_clicky_is_brighter_than_blue() {
+    let (sharp, blue) = (
+        mean_centroid("sharp-clicky", "default"),
+        mean_centroid("blue", "default"),
+    );
+    assert!(
+        sharp > blue,
+        "sharp-clicky {sharp:.0} Hz vs blue {blue:.0} Hz"
+    );
+}
+
+#[test]
+fn ac5_fast_linear_is_brighter_than_thocky_linear() {
+    let (fast, thocky) = (
+        mean_centroid("fast-linear", "default"),
+        mean_centroid("thocky-linear", "default"),
+    );
+    assert!(fast > thocky, "fast {fast:.0} Hz vs thocky {thocky:.0} Hz");
+}
+
+#[test]
+fn ac5_fast_linear_falls_40_db_sooner_than_thocky_linear() {
+    let (fast, thocky) = (
+        mean_fall_time("fast-linear"),
+        mean_fall_time("thocky-linear"),
+    );
+    assert!(fast < thocky, "fast {fast:.3} s vs thocky {thocky:.3} s");
+}
+
+#[test]
+fn ac5_each_new_packs_space_is_lower_than_its_default() {
+    for id in NEW_IDS {
+        let space = mean_centroid(id, "space");
+        let default = mean_centroid(id, "default");
+        assert!(
+            space < default,
+            "pack {id}: space {space:.0} Hz, default {default:.0} Hz"
+        );
+    }
+}
+
+// AC9
+
+fn sources_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples")
+        .join("make_packs")
+        .join("sources")
+}
+
+fn clips() -> Vec<Value> {
+    let text = fs::read_to_string(sources_dir().join("sources.json")).expect("sources.json");
+    let v: Value = serde_json::from_str(&text).expect("sources.json is JSON");
+    v.get("clips")
+        .and_then(|c| c.as_array())
+        .expect("sources.json has a clips list")
+        .clone()
+}
+
+#[test]
+fn ac9_every_listed_clip_is_complete_and_cc0() {
+    for clip in clips() {
+        let field = |k: &str| {
+            clip.get(k)
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| panic!("clip {clip}: missing {k}"))
+                .to_string()
+        };
+        let file = field("file");
+        assert!(sources_dir().join(&file).is_file(), "{file}: file missing");
+        assert!(
+            IDS.contains(&field("pack").as_str()),
+            "{file}: unknown pack"
+        );
+        field("title");
+        field("author");
+        let source = field("source");
+        assert!(
+            source == "own recording" || source.starts_with("https://"),
+            "{file}: bad source {source}"
+        );
+        assert_eq!(field("license"), "CC0-1.0", "{file}: licence");
+    }
+}
+
+#[test]
+fn ac9_every_wav_in_the_sources_folder_is_listed() {
+    let listed_files: Vec<String> = clips()
+        .iter()
+        .map(|c| c["file"].as_str().unwrap().to_string())
+        .collect();
+    for e in fs::read_dir(sources_dir()).unwrap() {
+        let p = e.unwrap().path();
+        if p.extension().is_some_and(|x| x == "wav") {
+            let name = p.file_name().unwrap().to_string_lossy().into_owned();
+            assert!(listed_files.contains(&name), "{name} is not listed");
+        }
+    }
+}
+
+#[test]
+fn ac9_the_licence_file_names_all_eight_packs() {
+    let text = fs::read_to_string(packs_dir().join("LICENSE.md")).expect("LICENSE.md");
+    for id in IDS {
+        assert!(text.contains(id), "LICENSE.md does not name pack {id}");
+    }
+    assert!(text.contains("CC0"));
+}
+
+#[test]
+fn ac9_the_licence_file_names_every_clip_used() {
+    let text = fs::read_to_string(packs_dir().join("LICENSE.md")).expect("LICENSE.md");
+    for clip in clips() {
+        for k in ["title", "author", "source"] {
+            let v = clip[k].as_str().unwrap();
+            assert!(text.contains(v), "LICENSE.md does not contain {k} {v:?}");
+        }
     }
 }
 

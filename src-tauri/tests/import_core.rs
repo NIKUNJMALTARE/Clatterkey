@@ -329,6 +329,91 @@ fn ac18_a_bundled_id_is_not_replaced_by_an_import() {
     assert_ne!(brown_ms, 33);
 }
 
+// ---- Feature 15 AC12: imported packs with a new bundled id ----
+
+fn real_bundled() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("packs")
+}
+
+fn real_core(imported: &Path) -> Core {
+    let data = imported.parent().unwrap().to_path_buf();
+    let settings_path = data.join("settings.json");
+    fs::write(&settings_path, file("brown")).unwrap();
+    let library = library(&real_bundled(), imported);
+    let (_, err) = fake_err();
+    let loaded = settings::load_or_create_report(&settings_path, &err);
+    let chosen = choose_pack_in(&library, &loaded.settings.pack_id, &err);
+    Core::new(CoreParts {
+        settings_path: Some(settings_path),
+        library,
+        loaded,
+        playing: chosen.playing,
+        fell_back: chosen.fell_back,
+        login_item: Arc::new(Inert),
+        live: Arc::new(Live::new(chosen.sounds)),
+        permission: Arc::new(Permission::new(PermissionState::NotNeeded)),
+        audio: Box::new(|| OutputStatus::Playing),
+    })
+}
+
+#[test]
+fn feature_15_ac12_an_imported_folder_with_a_new_bundled_id_is_hidden_and_kept() {
+    for id in [
+        "thocky-linear",
+        "fast-linear",
+        "sharp-clicky",
+        "tactile-bump",
+    ] {
+        let data = TempDir::new("f15");
+        let imported = data.path().join("packs");
+        copy_dir(&fixture_pack("extra-field"), &imported.join(id));
+        let core = real_core(&imported);
+        let before = snapshot(&imported);
+
+        let list = core.list_packs();
+        let rows: Vec<&Value> = list
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["id"] == id)
+            .collect();
+        assert_eq!(rows.len(), 1, "pack {id} is listed once");
+        assert_eq!(rows[0]["imported"], false, "pack {id}: the bundled one");
+        assert_ne!(rows[0]["name"], "Extra field");
+
+        let found = library(&real_bundled(), &imported).find(id).expect("found");
+        assert!(!found.imported, "find({id}) gives the bundled pack");
+        assert_eq!(found.dir, real_bundled().join(id));
+
+        assert!(imported.join(id).join("pack.json").is_file());
+        assert_eq!(snapshot(&imported), before, "the imported folder is kept");
+    }
+}
+
+#[test]
+fn feature_15_ac12_importing_a_folder_named_fast_linear_gives_fast_linear_2() {
+    let data = TempDir::new("f15-import");
+    let imported = data.path().join("packs");
+    let core = real_core(&imported);
+    let (_t, src) = source_with_lengths("Fast linear", 33, None);
+    let v = core
+        .import_pack(&src)
+        .unwrap_or_else(|e| panic!("import refused: {e}"));
+    assert_eq!(v["pack"]["id"], "fast-linear-2");
+    assert_eq!(v["replaced"], false);
+    assert!(imported.join("fast-linear-2/pack.json").is_file());
+    let list = core.list_packs();
+    let bundled_row = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "fast-linear")
+        .expect("bundled fast-linear listed");
+    assert_eq!(bundled_row["imported"], false);
+}
+
 // ---- AC20: list_packs over two folders ----
 
 #[test]

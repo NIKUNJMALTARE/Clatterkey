@@ -263,3 +263,15 @@ pub fn finish(mut samples: Vec<f64>) -> Vec<f64> {
     }
     samples
 }
+
+/// Adds `x` times `gain` into `out` from `at` seconds, growing `out` if `x`
+/// runs past its end.
+pub fn mix(out: &mut Vec<f64>, x: &[f64], at: f64, gain: f64) {
+    let start = (at * RATE).round() as usize;
+    if out.len() < start + x.len() {
+        out.resize(start + x.len(), 0.0);
+    }
+    for (slot, s) in out.iter_mut().skip(start).zip(x) {
+        *slot += gain * s;
+    }
+}

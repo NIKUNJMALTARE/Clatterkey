@@ -93,7 +93,7 @@ Three more controls tune the sound:
 
 Two kinds of folder work:
 
-- **A pack folder**: a `pack.json` and the audio files it names (the format is in `docs/spec.md`). Only those files are copied.
+- **A pack folder**: a `pack.json` and the audio files it names (see [The pack format](#the-pack-format) below). Only those files are copied.
 - **A plain folder of audio files**: its own `.wav`, `.ogg`, `.mp3` and `.flac` files, not its subfolders. Each file is assigned by its name, ignoring case:
   - a name ending in `-up`, `_up` or ` up` is a key-up sound (`click-up.wav`);
   - a name starting with `space`, `enter`, `backspace` or `modifier` is for those keys (`space.wav`, `Space 2.wav`, `enter-up.wav`);
@@ -107,7 +107,50 @@ The limits are those of every pack: each file at most 10 MB, 3 seconds and 96 kH
 
 Importing a folder with the same name again replaces the earlier copy. **Remove** on an imported pack's row asks once, then deletes the app's copy; your own folder is not touched. If that pack was playing, Brown switches takes over. The bundled packs cannot be removed.
 
-The copies are kept in `packs/` beside `settings.json` (see Settings below), one folder per pack, named by an id made from your folder's name (`My Clicks` becomes `my-clicks`).
+The copies are kept in the app's data folder, one folder per pack, named by an id made from your folder's name (`My Clicks` becomes `my-clicks`):
+
+- macOS: `~/Library/Application Support/com.clatterkey.app/packs/`
+- Windows: `%APPDATA%\com.clatterkey.app\packs\`
+
+These folders are hidden by default. To open one on macOS, choose Go, Go to Folder… in Finder (Shift-Command-G) and paste the path. On Windows, paste the path into the address bar of File Explorer, or into the Run box (Windows key + R), and press Enter.
+
+#### The pack format
+
+A pack folder holds a file named `pack.json` and the audio files it names, for example:
+
+```json
+{
+  "name": "My clicks",
+  "author": "Your name",
+  "license": "CC0-1.0",
+  "keys": {
+    "default": ["down/key-1.wav", "down/key-2.wav"],
+    "space": ["down/space.wav"],
+    "enter": ["down/enter.wav"],
+    "backspace": ["down/backspace.wav"],
+    "modifier": ["down/modifier.wav"]
+  },
+  "up": {
+    "default": ["up/key.wav"]
+  }
+}
+```
+
+- `name` and `license` are required text and are shown in the pack list. `author` is optional. Other top-level fields are ignored.
+- `keys` holds the sounds of a key going down, and it needs a `default` list with at least one file. The other groups are optional, and a key whose group is missing plays `default`:
+  - `space`: Space;
+  - `enter`: Enter and Numpad Enter;
+  - `backspace`: Backspace;
+  - `modifier`: Shift, Control, Alt/Option and Command/Windows (left and right), Caps Lock and Fn;
+  - `default`: every other key.
+
+  Any other group name is an error.
+- `up` is optional and has the same shape, for the sound of a key being released. A missing group there plays `up.default`, or nothing if `up` has no `default`.
+- When a group lists several files, one is picked at random for each press, never the same file twice in a row.
+- File paths are relative to the pack folder, use `/` (also on Windows), and may not point outside the folder. The files may be WAV, OGG Vorbis, MP3 or FLAC. The type is read from the file's content, not its extension.
+- Limits: `pack.json` at most 64 KB; each audio file at most 10 MB, 3 seconds and 96 kHz; at most 100 files and 60 seconds of audio in all.
+
+A pack loads whole or not at all. If something is wrong, the notice names the field or file and the reason.
 
 ### The macOS permission
 
@@ -185,7 +228,7 @@ To look at the window in a browser without the app, run `npm run dev` and open `
 
 The packs in `src-tauri/resources/packs/` are synthesised from code by the generator in `src-tauri/examples/make_packs/`, with no recordings, and are released under CC0 (see the `LICENSE.md` beside them). The generator is deterministic and its output is committed, so building the app never runs it. After changing it, run `npm run make-packs` and commit the regenerated files; a test checks that they match the generator.
 
-A pack is a folder with a `pack.json` and audio files (WAV, OGG Vorbis, MP3 or FLAC); the full format is in `docs/spec.md`. Test packs live in `src-tauri/tests/fixtures/packs/`.
+A pack is a folder with a `pack.json` and audio files (WAV, OGG Vorbis, MP3 or FLAC); the full format is under [The pack format](#the-pack-format). Test packs live in `src-tauri/tests/fixtures/packs/`.
 
 `scripts/check.sh` checks that the version is the same in every file that holds it, then formats, lints, type-checks and tests the UI and the core. It rewrites badly formatted files when run locally and only reports them when the `CI` environment variable is set.
 

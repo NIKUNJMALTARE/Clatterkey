@@ -14,3 +14,9 @@ CLAUDE.md
 .claude/
 .playwright-mcp/
 .vitest/
+*.md
+!README.md
+!**/README.md
+prototypes/
+# The bundled packs' licence ships with the app
+!src-tauri/resources/packs/LICENSE.md

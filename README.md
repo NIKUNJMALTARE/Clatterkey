@@ -79,7 +79,7 @@ The copy is made only once, at the first start, and only if Clatterkey has no se
 
 ## Using the app
 
-While the app is running, every key you press in any app plays a sound from one of four bundled sound packs (blue, brown and red switches, and a typewriter) or from a pack you imported. The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
+While the app is running, every key you press in any app plays a sound from one of eight bundled sound packs or from a pack you imported. The bundled packs are blue, brown and red switches, a typewriter, and four gaming-keyboard sounds: Thocky linear (deep and muffled), Fast linear (a quick, bright clack), Sharp clicky (a crisp click before the bottom-out) and Tactile bump (an audible bump, then a full bottom-out). The settings window chooses the pack, sets the volume and turns the sound on or off; every change is heard on the next key press and is saved.
 
 Three more controls tune the sound:
 
@@ -218,7 +218,7 @@ The settings window has a Sound switch, a volume slider, a pitch variation slide
 }
 ```
 
-`pack_id` is one of `blue`, `brown`, `red` or `typewriter`, or the id of an imported pack. `pitch_variation` is from 0.0 (off) to 0.3. `launch_at_login` is compared with the system's own list when the app starts: a registration that is gone or disabled there turns it off, and with the setting off a registration that is still there is removed. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
+`pack_id` is one of `blue`, `brown`, `red`, `typewriter`, `thocky-linear`, `fast-linear`, `sharp-clicky` or `tactile-bump`, or the id of an imported pack. An imported pack with the same id as a bundled one is hidden behind it; import its folder again and it gets a numbered id (`fast-linear-2`). `pitch_variation` is from 0.0 (off) to 0.3. `launch_at_login` is compared with the system's own list when the app starts: a registration that is gone or disabled there turns it off, and with the setting off a registration that is still there is removed. The file is read only when the app starts, so an edit made by hand while the app runs has no effect and is overwritten by the next change in the window.
 
 An unknown pack plays `brown`, and a broken settings file is left as it is with the defaults in use. Either way the window shows a notice, and one line starting `sound pack:` or `settings:` is printed. A broken file is replaced the first time a setting is changed in the window.
 
@@ -226,7 +226,30 @@ To look at the window in a browser without the app, run `npm run dev` and open `
 
 ### The bundled packs
 
-The packs in `src-tauri/resources/packs/` are synthesised from code by the generator in `src-tauri/examples/make_packs/`, with no recordings, and are released under CC0 (see the `LICENSE.md` beside them). The generator is deterministic and its output is committed, so building the app never runs it. After changing it, run `npm run make-packs` and commit the regenerated files; a test checks that they match the generator.
+The packs in `src-tauri/resources/packs/` are made by the generator in `src-tauri/examples/make_packs/` and are released under CC0 (see the `LICENSE.md` beside them, which the generator writes and which says what each pack was made from). Each press is built from layered synthesised parts: the switch's click or bump, the stem bottoming out, the keycap, the plate, the case and, on long keys, the stabiliser. The generator is deterministic and its output is committed, so building the app never runs it. After changing it, run `npm run make-packs` and commit the regenerated files; a test checks that they match the generator.
+
+#### Adding recordings
+
+The generator can also layer its synthesised parts under single key presses cut from recordings. Recordings go in `src-tauri/examples/make_packs/sources/`, each listed in `sources.json` there:
+
+```json
+{
+  "clips": [
+    {
+      "file": "sharp-clicky-1.wav",
+      "pack": "sharp-clicky",
+      "title": "Typing on a clicky keyboard",
+      "author": "the recordist's name",
+      "source": "https://freesound.org/people/…/sounds/…/",
+      "license": "CC0-1.0"
+    }
+  ]
+}
+```
+
+- **Only CC0.** The packs are copied into every installer, so every sound in them must be free to redistribute. Read the licence on the recording's own page before adding it and put that page in `source`. For your own recordings, write `"source": "own recording"`; adding them dedicates them to the public domain under CC0. The generator refuses to run if any listed clip is not `CC0-1.0`, or if a `.wav` in the folder is not listed.
+- **Format:** WAV, PCM, mono, 44.1 kHz, 16 or 24-bit. Convert and trim a recording once, keeping a stretch of separate key presses with little background noise, at most 8 seconds: `ffmpeg -i original.flac -ss 12 -t 8 -ac 1 -ar 44100 -c:a pcm_s24le sharp-clicky-1.wav`.
+- Then run `npm run make-packs`, listen to the pack, and commit the clip, `sources.json` and the regenerated packs. The presses replace the pack's synthesised click and bottom-out; its keycap, plate and case are still synthesised under them.
 
 A pack is a folder with a `pack.json` and audio files (WAV, OGG Vorbis, MP3 or FLAC); the full format is under [The pack format](#the-pack-format). Test packs live in `src-tauri/tests/fixtures/packs/`.
 

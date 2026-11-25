@@ -89,7 +89,18 @@ fn default_ms(sounds: &SoundSet) -> u64 {
 
 #[test]
 fn ac10_is_pack_id_accepts_plain_names_only() {
-    for ok in ["blue", "brown", "red", "typewriter", "my-pack_2", "A1"] {
+    for ok in [
+        "blue",
+        "brown",
+        "red",
+        "typewriter",
+        "thocky-linear",
+        "fast-linear",
+        "sharp-clicky",
+        "tactile-bump",
+        "my-pack_2",
+        "A1",
+    ] {
         assert!(is_pack_id(ok), "{ok:?} should be valid");
     }
     for bad in [
@@ -173,7 +184,16 @@ fn ac6_default_settings_play_brown_from_the_bundled_packs() {
 
 #[test]
 fn ac7_each_bundled_id_plays_that_pack_and_prints_nothing() {
-    for id in ["blue", "brown", "red", "typewriter"] {
+    for id in [
+        "blue",
+        "brown",
+        "red",
+        "typewriter",
+        "thocky-linear",
+        "fast-linear",
+        "sharp-clicky",
+        "tactile-bump",
+    ] {
         let (buffer, err) = fake_err();
         let sounds = choose_sounds(Some(&bundled()), id, &err);
         assert_eq!(written(&buffer), "", "pack {id}");
@@ -195,6 +215,38 @@ fn ac7_a_pack_id_read_from_the_settings_file_is_the_pack_that_plays() {
             .lines()
             .all(|l| l.starts_with("settings: "))
     );
+}
+
+#[test]
+fn feature_15_ac11_a_new_pack_id_in_the_settings_file_is_the_pack_that_plays() {
+    for id in [
+        "thocky-linear",
+        "fast-linear",
+        "sharp-clicky",
+        "tactile-bump",
+    ] {
+        let tmp = TempDir::new("newpack");
+        let path = tmp.path().join("settings.json");
+        fs::write(&path, format!(r#"{{"pack_id":"{id}"}}"#)).unwrap();
+        let (buffer, err) = fake_err();
+        let s = settings::load_or_create(&path, &err);
+        assert_eq!(s.pack_id, id);
+        let sounds = choose_sounds(Some(&bundled()), &s.pack_id, &err);
+        // The file has only `pack_id`, so a `settings:` line about the other
+        // fields is expected; no line about the sound pack is.
+        assert!(
+            written(&buffer)
+                .lines()
+                .all(|l| l.starts_with("settings: ")),
+            "pack {id}: {}",
+            written(&buffer)
+        );
+        assert!(is_pack(&sounds, id), "pack {id} should play");
+        assert!(
+            sounds.pick(KeyKind::Up, KeyGroup::Default).is_some(),
+            "pack {id} has key-up sounds"
+        );
+    }
 }
 
 // AC11

@@ -3,14 +3,14 @@
   "author": "Clatterkey contributors",
   "license": "CC0-1.0",
   "keys": {
-    "default": ["down/default-1.wav", "down/default-2.wav", "down/default-3.wav", "down/default-4.wav", "down/default-5.wav"],
+    "default": ["down/default-1.wav", "down/default-2.wav", "down/default-3.wav", "down/default-4.wav", "down/default-5.wav", "down/default-6.wav", "down/default-7.wav", "down/default-8.wav"],
     "space": ["down/space-1.wav", "down/space-2.wav", "down/space-3.wav"],
     "enter": ["down/enter-1.wav", "down/enter-2.wav", "down/enter-3.wav"],
     "backspace": ["down/backspace-1.wav", "down/backspace-2.wav", "down/backspace-3.wav"],
     "modifier": ["down/modifier-1.wav", "down/modifier-2.wav", "down/modifier-3.wav"]
   },
   "up": {
-    "default": ["up/default-1.wav", "up/default-2.wav", "up/default-3.wav"],
+    "default": ["up/default-1.wav", "up/default-2.wav", "up/default-3.wav", "up/default-4.wav"],
     "space": ["up/space-1.wav", "up/space-2.wav"]
   }
 }

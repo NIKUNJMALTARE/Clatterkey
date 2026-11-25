@@ -1,7 +1,8 @@
 //! Generates the bundled sound packs: `npm run make-packs`.
 //!
-//! Every sound is synthesised here from code alone (noise bursts and damped
-//! resonances), so the packs belong to the project and are released as CC0.
+//! Every sound is synthesised here from code (noise bursts and damped
+//! resonances), optionally layered over single presses cut from recorded
+//! clips in `sources/`, which must be CC0. The packs are released as CC0.
 //! The output is deterministic and committed in `src-tauri/resources/packs/`;
 //! the app, the tests and CI never run this. Run it again after changing a
 //! recipe and commit the result.
@@ -9,6 +10,7 @@
 //! This is a development tool. It is an example target, so none of it is
 //! compiled into the app.
 
+mod sources;
 mod synth;
 mod voices;
 mod wav;
@@ -18,12 +20,12 @@ mod tests;
 
 use std::fmt::Write as _;
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use sources::Clip;
 use synth::Rng;
-use voices::{Kind, Pack, group_gain, recipe};
+use voices::{Kind, Pack, group_gain};
 
 /// The highest peak any file may have: about -1.4 dBFS, under the -1 dBFS
 /// limit after rounding to 16 bits.
@@ -42,11 +44,17 @@ struct File {
 }
 
 fn main() -> ExitCode {
-    let out = std::env::args_os()
-        .nth(1)
+    let mut args = std::env::args_os().skip(1);
+    let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let out = args
+        .next()
         .map(PathBuf::from)
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/packs"));
-    match generate(&out) {
+        .unwrap_or_else(|| here.join("resources/packs"));
+    let sources = args
+        .next()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| here.join("examples/make_packs/sources"));
+    match generate(&out, &sources) {
         Ok(()) => {
             println!("wrote the sound packs to {}", out.display());
             ExitCode::SUCCESS
@@ -61,14 +69,28 @@ fn main() -> ExitCode {
     }
 }
 
-/// Writes the four packs and the licence file into `out`, replacing any
-/// earlier output there. Nothing else in `out` is touched.
-pub fn generate(out: &Path) -> io::Result<()> {
+/// Writes every pack and the licence file into `out`, replacing any earlier
+/// output of the packs there. Nothing else in `out` is touched. The source
+/// clips in `sources_dir` are checked first: if any is refused, nothing is
+/// written and the error names it.
+pub fn generate(out: &Path, sources_dir: &Path) -> Result<(), String> {
+    let clips = sources::load(sources_dir)?;
+    write(out, &clips).map_err(|e| e.to_string())
+}
+
+fn write(out: &Path, clips: &[Clip]) -> std::io::Result<()> {
     fs::create_dir_all(out)?;
 
     let mut packs: Vec<(Pack, Vec<File>)> = Pack::ALL
         .iter()
-        .map(|&pack| (pack, render_pack(pack)))
+        .map(|&pack| {
+            let presses: Vec<Vec<f64>> = clips
+                .iter()
+                .filter(|c| c.pack == pack)
+                .flat_map(|c| sources::presses(&c.samples))
+                .collect();
+            (pack, render_pack(pack, &presses))
+        })
         .collect();
     level(&mut packs);
 
@@ -86,20 +108,20 @@ pub fn generate(out: &Path) -> io::Result<()> {
         }
         fs::write(dir.join("pack.json"), manifest(*pack, files))?;
     }
-    fs::write(out.join("LICENSE.md"), LICENSE_TEXT)?;
+    fs::write(out.join("LICENSE.md"), license(clips))?;
     Ok(())
 }
 
 /// Every file of one pack, each normalised to a peak of 1 and then scaled
 /// by its group's relative loudness.
-fn render_pack(pack: Pack) -> Vec<File> {
+fn render_pack(pack: Pack, presses: &[Vec<f64>]) -> Vec<File> {
     let mut files = Vec::new();
     for (kind, group, count) in pack.layout() {
         for variation in 1..=count {
             let name = format!("{}/{}-{variation}.wav", kind.name(), group.name());
             let mut rng = Rng::from_name(&format!("{}/{name}", pack.id()));
-            let (strikes, length) = recipe(pack, kind, group, &mut rng);
-            let mut samples = synth::finish(synth::render(&strikes, length, &mut rng));
+            let raw = voices::render(pack, kind, group, variation, presses, &mut rng);
+            let mut samples = synth::finish(raw);
             let p = synth::peak(&samples);
             synth::scale(&mut samples, group_gain(pack, kind, group) / p);
             files.push(File {
@@ -188,20 +210,60 @@ fn manifest(pack: Pack, files: &[File]) -> String {
     s
 }
 
-const LICENSE_TEXT: &str = "\
-# Bundled sound packs
-
-The packs in this folder (`blue`, `brown`, `red` and `typewriter`) are
-synthesised entirely from code by the generator in
-`src-tauri/examples/make_packs/`. They contain no recordings and no audio
-from any other source.
-
-To the extent possible under law, the Clatterkey contributors
-have waived all copyright and related or neighbouring rights to these sound
-files, under the Creative Commons CC0 1.0 Universal public domain
-dedication: https://creativecommons.org/publicdomain/zero/1.0/
-
-To regenerate them after changing the generator:
-
-    npm run make-packs
-";
+/// The licence file beside the packs: the CC0 dedication, then what each
+/// pack was made from.
+fn license(clips: &[Clip]) -> String {
+    let mut s = String::from(
+        "# Bundled sound packs\n\
+         \n\
+         The packs in this folder are made by the generator in\n\
+         `src-tauri/examples/make_packs/`: synthesised from code, and for some\n\
+         packs layered over single key presses cut from recordings that are\n\
+         dedicated to the public domain (CC0). No other audio is used.\n\
+         \n\
+         To the extent possible under law, the Clatterkey contributors\n\
+         have waived all copyright and related or neighbouring rights to these sound\n\
+         files, under the Creative Commons CC0 1.0 Universal public domain\n\
+         dedication: https://creativecommons.org/publicdomain/zero/1.0/\n\
+         \n\
+         ## What each pack is made from\n\
+         \n",
+    );
+    for pack in Pack::ALL {
+        let used: Vec<&Clip> = clips.iter().filter(|c| c.pack == pack).collect();
+        if used.is_empty() {
+            let _ = writeln!(
+                s,
+                "- `{}` ({}): synthesised from code.",
+                pack.id(),
+                pack.name()
+            );
+            continue;
+        }
+        let _ = writeln!(
+            s,
+            "- `{}` ({}): synthesised parts layered with presses from these recordings:",
+            pack.id(),
+            pack.name()
+        );
+        for c in used {
+            let from = if c.source == sources::OWN {
+                "recorded by the Clatterkey contributors".to_string()
+            } else {
+                c.source.clone()
+            };
+            let _ = writeln!(
+                s,
+                "  - \"{}\" by {}, {}, {} (`{}`)",
+                c.title, c.author, from, c.license, c.file
+            );
+        }
+    }
+    s.push_str(
+        "\n\
+         To regenerate them after changing the generator or its sources:\n\
+         \n\
+         \x20   npm run make-packs\n",
+    );
+    s
+}

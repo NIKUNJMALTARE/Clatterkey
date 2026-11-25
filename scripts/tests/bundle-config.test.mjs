@@ -97,9 +97,13 @@ describe("AC20 the package names", () => {
 		expect(main).toContain("clatterkey_lib::run()");
 	});
 
-	it("AC20 the version stays 0.1.0 everywhere", () => {
-		expect(tomlValue("package", "version")).toBe("0.1.0");
-		expect(pkg.version).toBe("0.1.0");
-		expect(conf.version ?? "0.1.0").toBe("0.1.0");
+	// Feature 14 kept the version at 0.1.0 through the rename; releases since
+	// then move it, so what is held here is that it is the same everywhere
+	// and that tauri.conf.json carries none of its own.
+	it("AC20 the version is the same everywhere", () => {
+		const version = tomlValue("package", "version");
+		expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+		expect(pkg.version).toBe(version);
+		expect(conf.version).toBeUndefined();
 	});
 });
